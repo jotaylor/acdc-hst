@@ -1,0 +1,2 @@
+data_dir: "/astro/sveash/darks/MAST_2020-04-27T2011/HST/le0a01bzq"
+connection_string: "sqlite:///cos_dark.db"
