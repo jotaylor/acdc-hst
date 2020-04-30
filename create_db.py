@@ -1,6 +1,6 @@
 import yaml
 from connect_db import load_connection
-from schema import *
+from schema import Base, Darks, Solar
 
 with open("settings.yaml", "r") as f:
     SETTINGS = yaml.load(f)
