@@ -3,7 +3,7 @@ from sqlalchemy import create_engine
 from sqlalchemy.ext.declarative import declarative_base
 from sqlalchemy.orm import sessionmaker
 
-def load_connection(connection_string):
+def load_connection(connection_string, echo=False):
     """Return session, base, and engine objects for connecting to the database.
 
     Parameters
@@ -24,10 +24,9 @@ def load_connection(connection_string):
         Provides a source of database connectivity and behavior.
     """
 
-    engine = create_engine(connection_string, echo=False, poolclass=NullPool)
-    base = declarative_base(engine)
+    engine = create_engine(connection_string, echo=echo, poolclass=NullPool)
     Session = sessionmaker(bind=engine)
     session = Session()
 
-    return session, base, engine
+    return session, engine
 
