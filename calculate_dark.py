@@ -1,7 +1,11 @@
+import glob
+import os
 import numpy as np
 import pandas as pd
+from ftplib import FTP
 from astropy.io import fits
 from astropy.time import Time
+from astropy.io import ascii
 
 def measure_darkrate(filename=None):
     """
@@ -82,4 +86,84 @@ def dark_edges(df):
         for y in loc:
             dark_edges_dict[x + "_" + y] = (df[(df["segment"] == x) & (df["region"] == y)])
     return dark_edges_dict
+
+def get_solar_data(solardir):
+    """
+    Pull solar data files from NOAA website
+    Solar data is FTPd from NOAA and written to text files for use in plotting
+    and monitoring of COS dark-rates and TDS.
+    Parameters
+    ----------
+    solardir : str
+        Directory to write the files to
+    """
+
+    ftp = FTP("ftp.swpc.noaa.gov")
+    ftp.login()
+
+    ftp.cwd("/pub/indices/old_indices/")
+
+    for item in sorted(ftp.nlst()):
+        if item.endswith("_DSD.txt"):
+            year = int(item[:4])
+            if year >= 2008:
+                print("Retrieving: {}".format(item))
+                destination = os.path.join(solardir, item)
+                ftp.retrbinary("RETR {}".format(item),
+                               open(destination, "wb").write)
+
+                os.chmod(destination, 0o777)
+
+def parse_solar_files(files):
+    """Pull desired columns from solar data text files
+    Parameters
+    ----------
+    solardir : str
+    Returns
+    -------
+    date : np.ndarray
+        mjd of each measurements
+    flux : np.ndarray
+        solar flux measurements
+    """
+    date = []
+    flux = []
+    if isinstance(files, str):
+        if os.path.isfile(files):
+            input_list = [files]
+        else:
+            input_list = glob.glob(os.path.join(files, "*DSD.txt"))
+    else:
+        input_list = files
+    input_list.sort()
+
+    for item in input_list:
+        print("Reading {}".format(item))
+
+        # clean up Q4 files when year-long file exists
+        if ("Q4_" in item) and os.path.exists(item.replace("Q4_", "_")):
+            print("Removing duplicate observations: {}".format(item))
+            os.remove(item)
+            continue
+
+        # astropy.ascii no longer returns an empty table for empty files
+        # Throws IndexError, we will go around it if empty.
+        try:
+            data = ascii.read(item, data_start=1, comment="[#,:]")
+        except IndexError:                                    
+            continue                                          
+                                                              
+        for line in data:                                     
+            line_date = Time("{}-{}-{} 00:00:00".format(line["col1"],       
+                                                        line["col2"],       
+                                                        line["col3"]),      
+                             scale="utc", format="iso").mjd   
+                                                              
+            line_flux = line[3]                               
+                                                              
+            if line_flux > 0:                                 
+                date.append(line_date)                        
+                flux.append(line_flux)                        
+                                                              
+    return np.array(date), np.array(flux)                     
 
