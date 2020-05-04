@@ -28,6 +28,7 @@ class Darks(Base):
     darkrate = Column(Float())
     time = Column(Float())
     unfiltered_pha_counts = Column(Float())
+    solar_flux = Column(Float())
 
 class Solar(Base):
     """ORM for the solar table"""
