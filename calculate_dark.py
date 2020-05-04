@@ -54,11 +54,12 @@ def measure_darkrate(filename=None):
         second_per_mjd = 1.15741e-5
         mjd_per_step = hdulist[1].header["EXPSTART"] + times.copy().astype(np.float64) * second_per_mjd
         mjd = mjd_per_step[:-1]                                                   
-        t = Time(mjd, format="mjd")                                               
-        decyear = t.decimalyear                                                   
+        t = Time(mjd, format="mjd") 
+        decyear = t.decimalyear    
+        mjdtime = [x.value for x in t]                                               
         counts = counts / region_area / timestep                                             
         counts_unfiltered_pha = counts_unfiltered_pha / region_area / timestep               
-        d[x] = pd.DataFrame({"region": x, "segment": segment, "darkrate": counts, "time": decyear,
+        d[x] = pd.DataFrame({"region": x, "segment": segment, "darkrate": counts, "time": mjdtime,
                             "xcorr_min": location.get(x)[0], "xcorr_max": location.get(x)[1],    
                              "ycorr_min": location.get(x)[2], "ycorr_max": location.get(x)[3],   
                              "longitude": lon, "latitude": lat, "rootname": rootname, 
