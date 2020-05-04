@@ -5,7 +5,7 @@ from sqlalchemy import Float, ForeignKey, Integer, String
 Base = declarative_base()
 
 class Darks(Base):
-    """ORM for the darks table"""
+    """Object-relational mapping for the Darks table."""
 
     __tablename__ = "darks"
     id = Column(Integer, primary_key=True, nullable=False)
@@ -31,7 +31,7 @@ class Darks(Base):
     solar_flux = Column(Float())
 
 class Solar(Base):
-    """ORM for the solar table"""
+    """Object-relational mapping for the Solar table."""
 
     __tablename__ = "solar"
     id = Column(Integer, primary_key=True, nullable=False)

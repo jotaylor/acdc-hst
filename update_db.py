@@ -1,8 +1,8 @@
-from timeit import default_timer as timer
 import yaml
 import os
 import glob
 import numpy as np
+from timeit import default_timer as timer
 from astropy.io import fits
 from sqlalchemy import Table
 from sqlalchemy.ext.declarative import declarative_base
@@ -11,14 +11,72 @@ from connect_db import load_connection
 from schema import Solar, Darks
 from calculate_dark import measure_darkrate, dark_edges, parse_solar_files
 
+# For testing purposes only. If TESTING = True, only one value is recorded per
+# input dataset to save time. If TIMING = True, recorded runtime for each insert
+# is written to STDOUT.
 TESTING = True
 TIMING = True
 
 with open("settings.yaml", "r") as f:
     SETTINGS = yaml.load(f)
 
+def populate_solar(files, connection_string=SETTINGS["connection_string"],
+                   db_table=Solar):
+    """
+    Populate the Solar database table. This can be used to add new files
+    or ingest all data from scratch.
+    In order to properly get interpolated solar flux values for dark
+    observations, Solar table *must* be populated before the Darks table.
+    
+    Args:
+        files (array-like): Names of solar flux files to parse.
+        connection_string (str): Connection string to DB of the form:
+            `dialect+driver://username:password@host:port/database`
+        db_table (:obj:`sqlalchemy.Table`): Name of table to update, 
+            defaults to Solar.
+    """
+    
+    # Connect to database.
+    session, engine = load_connection(connection_string)
+    base = declarative_base(engine)
+    solar_table = Table(db_table.__tablename__, base.metadata, autoload=True)
+
+    for item in files:
+        time, flux = parse_solar_files(item)
+        for i in range(len(time)): 
+            start = timer()
+            solar_data = [
+                {"time": time[i],
+                 "flux": flux[i]}]
+            if TESTING is True:
+                solar_table.insert().execute(solar_data)
+                end = timer()
+                if TIMING is True:
+                    print("One insert took {} seconds".format(end-start))
+                break
+            solar_table.insert().execute(solar_data)
+            end = timer()
+            if TIMING is True:
+                print("One insert took {} seconds".format(end-start))
+    print("Updated table Solar")
+
 def populate_darks(files, connection_string=SETTINGS["connection_string"], 
                    db_table=Darks):
+    """
+    Populate the Darks database table. This can be used to add new files
+    or ingest all data from scratch.
+    In order to properly get interpolated solar flux values for dark
+    observations, Solar table *must* be populated before the Darks table.
+    
+    Args:
+        files (array-like): Names of COS dark files to ingest.
+        connection_string (str): Connection string to DB of the form:
+            `dialect+driver://username:password@host:port/database`
+        db_table (:obj:`sqlalchemy.Table`): Name of table to update,
+            defaults to Darks.
+    """
+
+    # Connect to database.
     session, engine = load_connection(connection_string)
     base = declarative_base(engine)
     darks_table = Table(db_table.__tablename__, base.metadata, autoload=True)
@@ -27,8 +85,11 @@ def populate_darks(files, connection_string=SETTINGS["connection_string"],
             hdr0 = hdulist[0].header
             hdr1 = hdulist[1].header
         itemname = os.path.basename(item)
-
         dark_df = measure_darkrate(item)
+        
+        # Query the Solar table to get solar fluxes near the dark observation
+        # dates. Interpolate to get appropriate values. If Solar table is not
+        # properly up to date, insert -999 values.
         try:
             solar_q = session.query(Solar.time, Solar.flux)\
                         .filter(Solar.time >= min(dark_df["time"])-2)\
@@ -40,6 +101,8 @@ def populate_darks(files, connection_string=SETTINGS["connection_string"],
         except:
             solar_flux_interp = np.full(len(dark_df["darkrate"]), -999)
 
+        # For each time sampling of the dark observation file, insert a series of
+        # values into the Darks table row.
         for j in range(len(dark_df["darkrate"])):
             start = timer()
             dark_row = dark_df.iloc[j]
@@ -75,34 +138,6 @@ def populate_darks(files, connection_string=SETTINGS["connection_string"],
             if TIMING is True:
                 print("One insert took {} seconds".format(end-start))
     print("Updated table Darks")
-
-def populate_solar(files, connection_string=SETTINGS["connection_string"],
-                   db_table=Solar):
-    session, engine = load_connection(connection_string)
-    base = declarative_base(engine)
-    solar_table = Table(db_table.__tablename__, base.metadata, autoload=True)
-
-    for item in files:
-        time, flux = parse_solar_files(item)
-        for i in range(len(time)): 
-            start = timer()
-            solar_data = [
-                {"time": time[i],
-                 "flux": flux[i]}]
-            if TESTING is True:
-                solar_table.insert().execute(solar_data)
-                end = timer()
-                if TIMING is True:
-                    print("One insert took {} seconds".format(end-start))
-                break
-            solar_table.insert().execute(solar_data)
-            end = timer()
-            if TIMING is True:
-                print("One insert took {} seconds".format(end-start))
-    print("Updated table Solar")
-    
-#def add_solar_to_darks():
-        
 
 if __name__ == "__main__":
     solar_files = glob.glob(os.path.join(SETTINGS["solar_dir"]))

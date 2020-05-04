@@ -1,27 +1,22 @@
 from sqlalchemy.pool import NullPool
 from sqlalchemy import create_engine
-from sqlalchemy.ext.declarative import declarative_base
 from sqlalchemy.orm import sessionmaker
 
 def load_connection(connection_string, echo=False):
-    """Return session, base, and engine objects for connecting to the database.
+    """
+    Return session, base, and engine objects for connecting to the database.
 
-    Parameters
-    ----------
-    connection_string : str
-        The connection string to connect to the database. The
-        connection string should take the form:
-        ``dialect+driver://username:password@host:port/database``
+    Args:
+        connection_string (str): The connection string to connect to the 
+            database. The connection string should take the form:
+            `dialect+driver://username:password@host:port/database`
+        echo (Bool): If True, log all statements to STDOUT. Defaults to False.
 
-    Returns
-    -------
-    session : sesson object
-        Provides a holding zone for all objects loaded or associated
-        with the database.
-    base : base object
-        Provides a base class for declarative class definitions.
-    engine : engine object
-        Provides a source of database connectivity and behavior.
+    Returns:
+        session (:obj:`Session()` instance): Provides a holding zone 
+            for all objects loaded or associated with the database.
+        engine (:obj:`engine` object): Provides a source of database 
+            connectivity and behavior.
     """
 
     engine = create_engine(connection_string, echo=echo, poolclass=NullPool)

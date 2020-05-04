@@ -6,6 +6,14 @@ with open("settings.yaml", "r") as f:
     SETTINGS = yaml.load(f)
 
 def create_db(connection_string=SETTINGS["connection_string"]):
+    """
+    Create the database, with name specified from `settings.yaml`.
+
+    Args:
+        connection_string (str): Connection string of the form:
+            `dialect+driver://username:password@host:port/database`
+    """
+
     session, engine = load_connection(SETTINGS["connection_string"])
     # It's important that the Base from schema.py be used (from the import)
     Base.metadata.create_all(engine)

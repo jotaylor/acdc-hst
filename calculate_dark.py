@@ -7,10 +7,24 @@ from astropy.io import fits
 from astropy.time import Time
 from astropy.io import ascii
 
-def measure_darkrate(filename=None):
+__author__ = "Jo Taylor"
+__email__ = "jotaylor@stsci.edu"
+
+def measure_darkrate(filename):
     """
-    Taken from the STScI COS team"s dark monitor, dark_monitor.py, and modified. 
-    Original authors include Justin Ely, Mees Fix, Dzhuliya Dashtamirova.
+    For an input dark dataset, record exposure information including
+    observation time, observatory latitude & longitude. Measure dark rate at
+    specified regions of the COS FUV detector at a given time interval in order
+    to accumulate enough counts for a measurement.
+    (Taken from the STScI COS team"s dark monitor, dark_monitor.py, and modified. 
+    Original authors include Justin Ely, Mees Fix, Dzhuliya Dashtamirova.)
+    
+    Args:
+        filename (str): Name of dark dataset.
+   
+    Returns:
+        dark_df (:obj:`pandas.dataframe`): Pandas dataframe with information for each
+            dark measurement. 
     """
 
     hdulist = fits.open(filename)
@@ -72,36 +86,19 @@ def measure_darkrate(filename=None):
     
     return dark_df
 
-def dark_edges(df):
-    """
-    Takes a data frame of all edges and splits it up into a dict of separate
-    dataframes, one for each segment and edge of the detector
-    :param df: pandas dataframe of darks for all programs
-    :return: a dictionary of dataframes split up by the segment and region
-    """
-    dark_edges_dict = {}
-    seg = ["FUVA", "FUVB"]
-    loc = ["inner", "bottom", "top", "left", "right"]
-
-    for x in seg:
-        for y in loc:
-            dark_edges_dict[x + "_" + y] = (df[(df["segment"] == x) & (df["region"] == y)])
-    return dark_edges_dict
-
 def get_solar_data(solardir):
     """
-    Pull solar data files from NOAA website
-    Solar data is FTPd from NOAA and written to text files for use in plotting
-    and monitoring of COS dark-rates and TDS.
-    Parameters
-    ----------
-    solardir : str
-        Directory to write the files to
+    Pull solar data files from NOAA website. Solar data is FTPd from NOAA and 
+    written to text files.
+    (Taken from the STScI COS team"s dark monitor, dark_monitor.py, and modified. 
+    Original authors include Justin Ely, Mees Fix, Dzhuliya Dashtamirova.)
+
+    Args:
+        solardir (str): Directory to write the solar data files to.
     """
 
     ftp = FTP("ftp.swpc.noaa.gov")
     ftp.login()
-
     ftp.cwd("/pub/indices/old_indices/")
 
     for item in sorted(ftp.nlst()):
@@ -112,21 +109,24 @@ def get_solar_data(solardir):
                 destination = os.path.join(solardir, item)
                 ftp.retrbinary("RETR {}".format(item),
                                open(destination, "wb").write)
-
                 os.chmod(destination, 0o777)
 
 def parse_solar_files(files):
-    """Pull desired columns from solar data text files
-    Parameters
-    ----------
-    solardir : str
-    Returns
-    -------
-    date : np.ndarray
-        mjd of each measurements
-    flux : np.ndarray
-        solar flux measurements
     """
+    Parse solar data text files and return date and flux.
+    (Taken from the STScI COS team"s dark monitor, dark_monitor.py, and modified. 
+    Original authors include Justin Ely, Mees Fix, Dzhuliya Dashtamirova.)
+    
+    Args:
+        files (str or array-like): If a string, a check is done to see if string 
+            is a file or a directory to be globbed. If not a string, array-like
+            is assumed.
+    
+    Returns:
+        date (:obj:`numpy.ndarray`): MJD of each solar flux measurement.
+        flux (:obj:`numpy.ndarray`): Solar flux measurements.
+    """
+
     date = []
     flux = []
     if isinstance(files, str):
@@ -159,7 +159,6 @@ def parse_solar_files(files):
                                                         line["col2"],       
                                                         line["col3"]),      
                              scale="utc", format="iso").mjd   
-                                                              
             line_flux = line[3]                               
                                                               
             if line_flux > 0:                                 
