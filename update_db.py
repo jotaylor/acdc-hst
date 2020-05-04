@@ -9,7 +9,7 @@ from sqlalchemy.ext.declarative import declarative_base
 
 from connect_db import load_connection
 from schema import Solar, Darks
-from calculate_dark import measure_darkrate, dark_edges, parse_solar_files
+from calculate_dark import measure_darkrate, parse_solar_files
 
 # For testing purposes only. If TESTING = True, only one value is recorded per
 # input dataset to save time. If TIMING = True, recorded runtime for each insert
