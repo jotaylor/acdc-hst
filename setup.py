@@ -24,10 +24,9 @@ setup(
                         "numpy",
                         "astropy",
 						"pandas",
-                        "ftplib",
                         "sqlalchemy",
                         "pymysql",
-                        "yaml"]
+                        "pyyaml"]
     )
 
 
