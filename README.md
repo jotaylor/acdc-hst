@@ -12,8 +12,8 @@ database with observation information is necessary. This code creates
 and updates this database, `cos_dark.db`.
 
 ## Installation
-If you do not already have Conda installed, you need to download install
-either Miniconda or Anaconda. Miniconda provides a bare-minimum Conda
+If you do not already have Conda installed, you need to download and install
+either Miniconda or Anaconda. Miniconda provides a bare minimum Conda
 environment. Anaconda provides a full Conda root environment along with
 many other tools, libraries, and utilities.
 * get [Miniconda](https://docs.conda.io/en/latest/miniconda.html)
@@ -26,7 +26,7 @@ for SSH connection, or:
 for HTTPS connection.
 
 ### Installing into a fresh environment
-Now, go to the cloned directory and from a bash shell enter:
+Go to the cloned repository, and from a bash shell enter:
 
 ```
 conda create -n <env_name> python
@@ -35,7 +35,7 @@ pip install -e .
 ```
 
 This only installs packages needed for the `cos_dark` software. You will
-need to install anything else, e.g.:
+need to install anything else manually, e.g.:
 
 ```
 pip install ipython scipy asdf
@@ -50,8 +50,8 @@ pip install -e .
 
 ## Usage
 
-If you are within the STScI network you can create the database necessary 
-to analyze the dark rate like so:
+If you are within the STScI network you can create a local version
+of the the database necessary like so:
 
 ```
 python create_db.py
@@ -59,12 +59,10 @@ python update_db.py
 ```
 
 If you are outside the STScI network, you can use the sqlite3 database 
-in this package: `cos_dark.db`.
+in this package, `cos_dark.db`.
 
 To access the database, you will need [SQLite](https://www.sqlite.org/index.html) 
-if you do not already have it.
-
-Simply type:
+if you do not already have it. Once you have it, simply type:
 
 ```
 sqlite3 cos_dark.db
