@@ -73,7 +73,8 @@ sqlite3 cos_dark.db
 and start exploring! For tips on SQLite queries, click [here](https://www.tutorialspoint.com/sqlite/sqlite_select_query.htm).
 
 The format of the database is as follows:
-*Darks*
+
+**Darks**
 | column                  | type    | description                     |
 | ----------------------- | ------- | ------------------------------- |
 | id                      | Integer | Primary key ID number           |
@@ -98,7 +99,7 @@ The format of the database is as follows:
 | solar_flux              | Float   | Solar flux at each sampled time |
 | fileloc                 | String  | STScI disk location of file     |
 
-*Solar*
+**Solar**
 | column | type  | description                        |
 | ------ | ----- | ---------------------------------- |
 | time   | Float | MJD date of solar flux measurement |
