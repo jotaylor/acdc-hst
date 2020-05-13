@@ -1,5 +1,4 @@
 import glob
-import os
 import numpy as np
 import pandas as pd
 from ftplib import FTP
@@ -10,7 +9,7 @@ from astropy.io import ascii
 __author__ = "Jo Taylor"
 __email__ = "jotaylor@stsci.edu"
 
-def measure_darkrate(filename):
+def measure_darkrate(filename, psa_1291):
     """
     For an input dark dataset, record exposure information including
     observation time, observatory latitude & longitude. Measure dark rate at
@@ -21,6 +20,8 @@ def measure_darkrate(filename):
     
     Args:
         filename (str): Name of dark dataset.
+        psa_1291 (dict): Output from `get_psa_box()`. This is passed in to avoid
+            running `get_psa_box()` many times within this function.
    
     Returns:
         dark_df (:obj:`pandas.dataframe`): Pandas dataframe with information for each
@@ -28,20 +29,24 @@ def measure_darkrate(filename):
     """
 
     hdulist = fits.open(filename)
+    
+    psa_1291 = get_1291_box() 
 
     timeline = hdulist["timeline"].data
     events = hdulist["events"].data
     segment = hdulist[0].header["segment"]
     rootname = hdulist[0].header["rootname"]
 
-    if segment == "FUVA": 
+    if segment == "FUVA":
         location = {"inner": (1260, 15119, 375, 660), "bottom": (1060, 15250, 296, 375),
                     "top": (1060, 15250, 660, 734), "left": (1060, 1260, 296, 734),
                     "right": (15119, 15250, 296, 734)}
+        location.update(psa_1291[segment])
     elif segment == "FUVB":
         location = {"inner": (1000, 14990, 405, 740), "bottom": (809, 15182, 360, 405),
                     "top": (809, 15182, 740, 785), "left": (809, 1000, 360, 785),
                     "right": (14990, 15182, 360, 785)}
+        location.update(psa_1291[segment])
     pha = (2, 23)
     timestep = 25 # in units of seconds
     times = timeline["time"][::timestep].copy()
@@ -51,16 +56,22 @@ def measure_darkrate(filename):
     d = {}
     for x in location:
         region_area = (location.get(x)[1] - location.get(x)[0]) * (location.get(x)[3] - location.get(x)[2])
+        if "location" == "psa_1291":
+            coord_x = "XCORR"
+            coord_y = "YFULL"
+        else:
+            coord_x = "XCORR"
+            coord_y = "YCORR"
         index = np.where((events["PHA"] > pha[0]) &
                          (events["PHA"] < pha[1]) &
-                         (events["XCORR"] > location.get(x)[0]) &
-                         (events["XCORR"] < location.get(x)[1]) &
-                         (events["YCORR"] > location.get(x)[2]) &
-                         (events["YCORR"] < location.get(x)[3]))
-        unfiltered_pha = np.where((events["XCORR"] > location.get(x)[0]) &
-                                  (events["XCORR"] < location.get(x)[1]) &
-                                  (events["YCORR"] > location.get(x)[2]) &
-                                  (events["YCORR"] < location.get(x)[3]))
+                         (events[coord_x] > location.get(x)[0]) &
+                         (events[coord_x] < location.get(x)[1]) &
+                         (events[coord_y] > location.get(x)[2]) &
+                         (events[coord_y] < location.get(x)[3]))
+        unfiltered_pha = np.where((events[coord_x] > location.get(x)[0]) &
+                                  (events[coord_x] < location.get(x)[1]) &
+                                  (events[coord_y] > location.get(x)[2]) &
+                                  (events[coord_y] < location.get(x)[3]))
         counts = np.histogram(events[index]["time"], bins=times)[0]
         counts_unfiltered_pha = np.histogram(events[unfiltered_pha]["time"], bins=times)[0]
         lat = timeline["latitude"][::timestep][:-1].copy()
@@ -79,7 +90,9 @@ def measure_darkrate(filename):
                              "longitude": lon, "latitude": lat, "rootname": rootname, 
                              "unfiltered_pha_counts": counts_unfiltered_pha})    
     # Combine all 5 tables for different regions                                  
-    dark_df = pd.concat([d["inner"], d["bottom"], d["top"], d["left"], d["right"]])       
+    dark_df = pd.concat([d["inner"], d["bottom"], d["top"], d["left"], d["right"], 
+                         d["lp1_psa_1291"], d["lp2_psa_1291"], d["lp3_psa_1291"],
+                         d["lp4_psa_1291"]]) 
     # Flag data taken near SAA where flag=1 denotes data outside the SAA.
     dark_df["saa_flag"] = np.where(dark_df.eval("latitude > 10 or longitude < 260"), 1, 0)
     hdulist.close() 
@@ -167,3 +180,58 @@ def parse_solar_files(files):
                                                               
     return np.array(date), np.array(flux)                     
 
+def get_1291_box():
+    """
+    Determine the 1291 PSA extraction box for each lifetime position.
+    
+    Returns:
+        psa_1291 (dict): Dictionary where each key is segment, and the value
+            is another dictionary where each key is lifetime position,
+            and the value is a tuple with (xmin, xmax, ymin, ymax) representing
+            the 1291 extraction box for that segment and LP combo.
+    """    
+    
+    import os
+    if "CRDS_PATH" not in os.environ:
+        if os.path.exists("/grp/crds/cache"):
+            os.environ["CRDS_PATH"] = "/grp/crds/cache"
+        else:
+            raise AssertionError("CRDS_PATH environment variable must first be defined")
+    os.environ["CRDS_SERVER_URL"] = "https://hst-crds.stsci.edu"
+    import crds
+
+    # The active area limits are taken from the COS BRFTAB x1u1459il_brf.fits
+    # This file will almost certainly not be updated, so hardcoding is okay.
+    aa_xcorr = {"FUVA": [1060, 15250], "FUVB": [809, 15182]}
+
+    psa_1291 = {"FUVA": {}, "FUVB": {}}
+    # For each LP, determine the appropriate xtractab as returned by CRDS on the fly.
+    for segment in ["FUVA", "FUVB"]:
+        for life_adj, date_obs in zip([1, 2, 3, 4], ["2010-01-01", "2014-01-01", "2016-01-01", "2018-01-01"]):
+            crds_1dx = crds.getrecommendations(parameters={"INSTRUME": "COS", 
+                                "DETECTOR": "FUV", "LIFE_ADJ": life_adj, 
+                                "OBSTYPE": "SPECTROSCOPIC", 
+                                "DATE-OBS": date_obs, "TIME-OBS": "00:00:00"},
+                            reftypes=["xtractab"], context="hst_0788.pmap", observatory="hst")
+            lp_1dx = os.path.join(os.environ["CRDS_PATH"], "references/hst/", 
+                                  crds_1dx["xtractab"])
+    
+            data_1dx = fits.getdata(lp_1dx)
+            ind = np.where((data_1dx["cenwave"] == 1291) & 
+                           (data_1dx["segment"] == segment) & 
+                           (data_1dx["aperture"] == "PSA"))
+            psa_data = data_1dx[ind]
+    
+            x = np.arange(16384)
+            y_center = psa_data["slope"][0] * x + psa_data["b_spec"][0]
+            y_upper = round(max(y_center + psa_data["height"][0] / 2))
+            y_lower = round(min(y_center - psa_data["height"][0] / 2))
+    
+            lpkey = "lp{}_psa_1291".format(life_adj)
+
+            # This  matches the format already defined in measure_darkrate()
+            # i.e. xmin, xmax, ymin, ymax 
+            # VERY IMPORTANT: Y coords are in YFULL, X in XCORR
+            psa_1291[segment][lpkey] = (aa_xcorr[segment][0], aa_xcorr[segment][1],
+                                        int(y_lower), int(y_upper))
+    return psa_1291
