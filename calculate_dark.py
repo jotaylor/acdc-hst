@@ -1,3 +1,4 @@
+import os
 import glob
 import numpy as np
 import pandas as pd
@@ -56,6 +57,7 @@ def measure_darkrate(filename, psa_1291):
     d = {}
     for x in location:
         region_area = (location.get(x)[1] - location.get(x)[0]) * (location.get(x)[3] - location.get(x)[2])
+        # In reality this is not an issue since YCORR=YFULL for darks.
         if "location" == "psa_1291":
             coord_x = "XCORR"
             coord_y = "YFULL"
@@ -82,13 +84,13 @@ def measure_darkrate(filename, psa_1291):
         t = Time(mjd, format="mjd") 
         decyear = t.decimalyear    
         mjdtime = [x.value for x in t]                                               
-        counts = counts / region_area / timestep                                             
-        counts_unfiltered_pha = counts_unfiltered_pha / region_area / timestep               
+        counts = counts / region_area                          
+        counts_unfiltered_pha = counts_unfiltered_pha / region_area 
         d[x] = pd.DataFrame({"region": x, "segment": segment, "darkrate": counts, "time": mjdtime,
                             "xcorr_min": location.get(x)[0], "xcorr_max": location.get(x)[1],    
                              "ycorr_min": location.get(x)[2], "ycorr_max": location.get(x)[3],   
                              "longitude": lon, "latitude": lat, "rootname": rootname, 
-                             "unfiltered_pha_counts": counts_unfiltered_pha})    
+                             "unfiltered_pha_counts": counts_unfiltered_pha, "exptime": timestep})    
     # Combine all 5 tables for different regions                                  
     dark_df = pd.concat([d["inner"], d["bottom"], d["top"], d["left"], d["right"], 
                          d["lp1_psa_1291"], d["lp2_psa_1291"], d["lp3_psa_1291"],
@@ -191,7 +193,6 @@ def get_1291_box():
             the 1291 extraction box for that segment and LP combo.
     """    
     
-    import os
     if "CRDS_PATH" not in os.environ:
         if os.path.exists("/grp/crds/cache"):
             os.environ["CRDS_PATH"] = "/grp/crds/cache"
