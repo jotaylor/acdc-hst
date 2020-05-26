@@ -9,7 +9,7 @@ from sqlalchemy.ext.declarative import declarative_base
 
 from connect_db import load_connection
 from schema import Solar, Darks
-from calculate_dark import measure_darkrate, parse_solar_files
+from calculate_dark import measure_darkrate, parse_solar_files, get_1291_box
 
 # For testing purposes only. If TESTING = True, only one value is recorded per
 # input dataset to save time. If TIMING = True, recorded runtime for each insert
@@ -76,6 +76,8 @@ def populate_darks(files, connection_string=SETTINGS["connection_string"],
             defaults to Darks.
     """
 
+    psa_1291 = get_1291_box()
+
     # Connect to database.
     session, engine = load_connection(connection_string)
     base = declarative_base(engine)
@@ -85,7 +87,7 @@ def populate_darks(files, connection_string=SETTINGS["connection_string"],
             hdr0 = hdulist[0].header
             hdr1 = hdulist[1].header
         itemname = os.path.basename(item)
-        dark_df = measure_darkrate(item)
+        dark_df = measure_darkrate(item, psa_1291)
         
         # Query the Solar table to get solar fluxes near the dark observation
         # dates. Interpolate to get appropriate values. If Solar table is not
