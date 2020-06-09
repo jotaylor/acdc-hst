@@ -16,7 +16,7 @@ from calculate_dark import measure_darkrate, parse_solar_files, get_1291_box
 # input dataset to save time. If TIMING = True, recorded runtime for each insert
 # is written to STDOUT.
 TESTING = False
-TIMING = False
+TIMING = True
 
 with open("settings.yaml", "r") as f:
     SETTINGS = yaml.load(f)
@@ -43,23 +43,29 @@ def populate_solar(files, connection_string=SETTINGS["connection_string"],
     solar_table = Table(db_table.__tablename__, base.metadata, autoload=True)
 
     for fileno,item in enumerate(files):
+        loop0 = timer()    
+        all_solar_rows = []
+
         time, flux = parse_solar_files(item)
         for i in range(len(time)): 
             start = timer()
             solar_data = [
                 {"time": time[i],
                  "flux": flux[i]}]
-            if TESTING is True:
-                solar_table.insert().execute(solar_data)
-                end = timer()
-                if TIMING is True:
-                    print("One insert took {} seconds".format(end-start))
-                break
-            solar_table.insert().execute(solar_data)
-            end = timer()
-            if TIMING is True:
-                print("One insert took {} seconds".format(end-start))
+            all_solar_rows.append(solar_data)
+
+        insert0 = timer()
+        solar_table.insert().execute(solar_data)
+        insert1 = timer()
         print("File {}/{}".format(fileno+1, len(files))) 
+
+        if TIMING is True:
+            print("One insert took {:.3g} seconds".format(insert1-insert0))
+            print("One file loop took {:.3g} seconds".format(insert1-loop0))
+        if TESTING is True:
+            print("Updated table Solar")
+            return
+
     print("Updated table Solar")
 
 def populate_darks(files, connection_string=SETTINGS["connection_string"], 
@@ -85,6 +91,9 @@ def populate_darks(files, connection_string=SETTINGS["connection_string"],
     base = declarative_base(engine)
     darks_table = Table(db_table.__tablename__, base.metadata, autoload=True)
     for i,item in enumerate(files):
+        loop0 = timer()
+        all_dark_rows = []
+
         with fits.open(item) as hdulist:
             hdr0 = hdulist[0].header
             hdr1 = hdulist[1].header
@@ -121,7 +130,6 @@ def populate_darks(files, connection_string=SETTINGS["connection_string"],
             dark_data1["expstart"] = round(info["time"][j], 6)
             # Loop over regions.
             for region in dark.keys():
-                start = timer()
                 dark_data = dark_data1.copy()
                 dark_data["region"] = region
                 dark_data["region_area"] = int(dark[region]["region_area"])
@@ -133,14 +141,18 @@ def populate_darks(files, connection_string=SETTINGS["connection_string"],
                 for k in range(len(info["pha"])):
                     pha_num = "dark_pha{}".format(info["pha"][k])
                     dark_data[pha_num] = int(dark[region]["darks"][j][k])
-                darks_table.insert().execute([dark_data])
-                end = timer()
-                if TIMING is True:
-                    print("One insert took {} seconds".format(end-start))
-                if TESTING is True:
-                    print("Updated table Darks")
-                    return
+                all_dark_rows.append(dark_data)
+        insert0 = timer()
+        darks_table.insert().execute([dark_data])
+        insert1 = timer()
         print("File {}/{}".format(i+1, len(files))) 
+        
+        if TIMING is True:
+            print("One insert took {:.3g} seconds".format(insert1-insert0))
+            print("One file loop took {:.3g} seconds".format(insert1-loop0))
+        if TESTING is True:
+            print("Updated table Darks")
+            return
 
     print("Updated table Darks")
 
@@ -148,7 +160,7 @@ if __name__ == "__main__":
     start = datetime.datetime.now()
     print("Start time: {}".format(start))
     solar_files = glob.glob(os.path.join(SETTINGS["solar_dir"]))
-    populate_solar(solar_files)
+#    populate_solar(solar_files)
     files = glob.glob(os.path.join(SETTINGS["dark_dir"]))
     populate_darks(files)
     end = datetime.datetime.now()
