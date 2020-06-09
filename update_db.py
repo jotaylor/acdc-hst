@@ -8,6 +8,7 @@ from astropy.io import fits
 from sqlalchemy import Table
 from sqlalchemy.ext.declarative import declarative_base
 
+import create_db
 from connect_db import load_connection
 from schema import Solar, Darks
 from calculate_dark import measure_darkrate, parse_solar_files, get_1291_box
@@ -16,7 +17,7 @@ from calculate_dark import measure_darkrate, parse_solar_files, get_1291_box
 # input dataset to save time. If TIMING = True, recorded runtime for each insert
 # is written to STDOUT.
 TESTING = False
-TIMING = True
+TIMING = False
 
 with open("settings.yaml", "r") as f:
     SETTINGS = yaml.load(f)
@@ -157,10 +158,12 @@ def populate_darks(files, connection_string=SETTINGS["connection_string"],
     print("Updated table Darks")
 
 if __name__ == "__main__":
+    if not os.path.exists("cos_dark.db"):
+        create_db.create_db()
     start = datetime.datetime.now()
     print("Start time: {}".format(start))
     solar_files = glob.glob(os.path.join(SETTINGS["solar_dir"]))
-#    populate_solar(solar_files)
+    populate_solar(solar_files)
     files = glob.glob(os.path.join(SETTINGS["dark_dir"]))
     populate_darks(files)
     end = datetime.datetime.now()
