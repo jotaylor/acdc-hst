@@ -1,3 +1,4 @@
+import datetime
 import yaml
 import os
 import glob
@@ -14,8 +15,8 @@ from calculate_dark import measure_darkrate, parse_solar_files, get_1291_box
 # For testing purposes only. If TESTING = True, only one value is recorded per
 # input dataset to save time. If TIMING = True, recorded runtime for each insert
 # is written to STDOUT.
-TESTING = True
-TIMING = True
+TESTING = False
+TIMING = False
 
 with open("settings.yaml", "r") as f:
     SETTINGS = yaml.load(f)
@@ -41,7 +42,7 @@ def populate_solar(files, connection_string=SETTINGS["connection_string"],
     base = declarative_base(engine)
     solar_table = Table(db_table.__tablename__, base.metadata, autoload=True)
 
-    for item in files:
+    for fileno,item in enumerate(files):
         time, flux = parse_solar_files(item)
         for i in range(len(time)): 
             start = timer()
@@ -58,6 +59,7 @@ def populate_solar(files, connection_string=SETTINGS["connection_string"],
             end = timer()
             if TIMING is True:
                 print("One insert took {} seconds".format(end-start))
+        print("File {}/{}".format(fileno+1, len(files))) 
     print("Updated table Solar")
 
 def populate_darks(files, connection_string=SETTINGS["connection_string"], 
@@ -138,11 +140,17 @@ def populate_darks(files, connection_string=SETTINGS["connection_string"],
                 if TESTING is True:
                     print("Updated table Darks")
                     return
-    
+        print("File {}/{}".format(i+1, len(files))) 
+
     print("Updated table Darks")
 
 if __name__ == "__main__":
+    start = datetime.datetime.now()
+    print("Start time: {}".format(start))
     solar_files = glob.glob(os.path.join(SETTINGS["solar_dir"]))
     populate_solar(solar_files)
     files = glob.glob(os.path.join(SETTINGS["dark_dir"]))
     populate_darks(files)
+    end = datetime.datetime.now()
+    print("End time: {}".format(end))
+    print("Total time: {}".format(end-start))
