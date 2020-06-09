@@ -1,3 +1,3 @@
-dark_dir: "/astro/sveash/darks/12432"
-solar_dir: "/astro/sveash/solar_data/2010_DSD.txt"
+dark_dir: "/astro/sveash/darks/*/*corrtag*fits"
+solar_dir: "/astro/sveash/solar_data/*txt"
 connection_string: "sqlite:///cos_dark.db"
