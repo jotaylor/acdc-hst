@@ -131,7 +131,6 @@ def populate_darks(files, connection_string=SETTINGS["connection_string"],
                 for k in range(len(info["pha"])):
                     pha_num = "dark_pha{}".format(info["pha"][k])
                     dark_data[pha_num] = int(dark[region]["darks"][j][k])
-                import pdb; pdb.set_trace()
                 darks_table.insert().execute([dark_data])
                 end = timer()
                 if TIMING is True:
@@ -145,5 +144,5 @@ def populate_darks(files, connection_string=SETTINGS["connection_string"],
 if __name__ == "__main__":
     solar_files = glob.glob(os.path.join(SETTINGS["solar_dir"]))
     populate_solar(solar_files)
-    files = glob.glob(os.path.join(SETTINGS["dark_dir"], "lbo2dkkuq_*corrtag*fits"))
+    files = glob.glob(os.path.join(SETTINGS["dark_dir"]))
     populate_darks(files)
