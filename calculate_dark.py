@@ -147,7 +147,7 @@ def parse_solar_files(files):
     input_list.sort()
 
     for item in input_list:
-        print("Reading {}".format(item))
+#        print("Reading {}".format(item))
 
         # clean up Q4 files when year-long file exists
         if ("Q4_" in item) and os.path.exists(item.replace("Q4_", "_")):
