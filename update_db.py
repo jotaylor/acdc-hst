@@ -50,13 +50,12 @@ def populate_solar(files, connection_string=SETTINGS["connection_string"],
         time, flux = parse_solar_files(item)
         for i in range(len(time)): 
             start = timer()
-            solar_data = [
-                {"time": time[i],
-                 "flux": flux[i]}]
+            solar_data = {"time": time[i],
+                          "flux": flux[i]}
             all_solar_rows.append(solar_data)
 
         insert0 = timer()
-        solar_table.insert().execute(solar_data)
+        solar_table.insert().execute(all_solar_rows)
         insert1 = timer()
         print("File {}/{}".format(fileno+1, len(files))) 
 
@@ -144,7 +143,7 @@ def populate_darks(files, connection_string=SETTINGS["connection_string"],
                     dark_data[pha_num] = int(dark[region]["darks"][j][k])
                 all_dark_rows.append(dark_data)
         insert0 = timer()
-        darks_table.insert().execute([dark_data])
+        darks_table.insert().execute(all_dark_rows)
         insert1 = timer()
         print("File {}/{}".format(i+1, len(files))) 
         
