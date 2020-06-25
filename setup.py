@@ -26,7 +26,10 @@ setup(
 						"pandas",
                         "sqlalchemy",
                         "pymysql",
-                        "pyyaml"]
+                        "pyyaml",
+                        "bokeh",
+                        "holoviews",
+                        "datashader"]
     )
 
 
