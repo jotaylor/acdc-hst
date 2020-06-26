@@ -48,10 +48,10 @@ Go to the cloned directory and from a bash shell enter:
 pip install -e . 
 ```
 
-## Usage
+## Using the Database
 
 If you are within the STScI network you can create a local version
-of the the database necessary like so:
+of the the database like so:
 
 ```
 python create_db.py
@@ -59,7 +59,7 @@ python update_db.py
 ```
 
 If you are outside the STScI network, you can use the sqlite3 database 
-in this package, `cos_dark.db`.
+available on Box- contact Jo Taylor for details.
 
 To access the database, you will need [SQLite](https://www.sqlite.org/index.html) 
 if you do not already have it. Once you have it, simply type:
@@ -69,6 +69,11 @@ sqlite3 cos_dark.db
 ```
 
 and start exploring! For tips on SQLite queries, click [here](https://www.tutorialspoint.com/sqlite/sqlite_select_query.htm).
+
+Interactive plots of dark counts vs. time are available in the 
+`plot_dark_vs_time.ipynb` jupyter notebook.
+
+## Database Format
 
 The format of the database is as follows:
 
