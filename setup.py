@@ -29,7 +29,8 @@ setup(
                         "pyyaml",
                         "bokeh",
                         "holoviews",
-                        "datashader"]
+                        "datashader",
+                        "dask"]
     )
 
 
