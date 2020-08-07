@@ -189,7 +189,7 @@ if __name__ == "__main__":
 	segment = 'FUVA'
 
 	E = np.linspace (0,31, 32)
-	conn = create_connection('cos_dark.db')
+	conn = create_connection('../cos_dark.db')
 
 	ii = []
 	mu = []
