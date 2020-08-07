@@ -1,3 +1,4 @@
+import os
 import glob
 import numpy as np
 import pandas as pd
@@ -9,7 +10,7 @@ from astropy.io import ascii
 __author__ = "Jo Taylor"
 __email__ = "jotaylor@stsci.edu"
 
-def measure_darkrate(filename, psa_1291):
+def measure_darkrate(filename, psa_1291=None):
     """
     For an input dark dataset, record exposure information including
     observation time, observatory latitude & longitude. Measure dark rate at
@@ -20,8 +21,8 @@ def measure_darkrate(filename, psa_1291):
     
     Args:
         filename (str): Name of dark dataset.
-        psa_1291 (dict): Output from `get_psa_box()`. This is passed in to avoid
-            running `get_psa_box()` many times within this function.
+        psa_1291 (dict): Output from `get_1291_box()`. This is passed in to avoid
+            running `get_1291_box()` many times within this function.
    
     Returns:
         dark_df (:obj:`pandas.dataframe`): Pandas dataframe with information for each
@@ -30,7 +31,8 @@ def measure_darkrate(filename, psa_1291):
 
     hdulist = fits.open(filename)
     
-    psa_1291 = get_1291_box() 
+    if psa_1291 is None:
+        psa_1291 = get_1291_box()
 
     timeline = hdulist["timeline"].data
     events = hdulist["events"].data
@@ -52,52 +54,45 @@ def measure_darkrate(filename, psa_1291):
     times = timeline["time"][::timestep].copy()
     events = hdulist["events"].data
 
-    # Creates 5 different tables, one for each region of detector
-    d = {}
+    lat = timeline["latitude"][::timestep][:-1].copy()
+    lon = timeline["longitude"][::timestep][:-1].copy()
+    second_per_mjd = 1.15741e-5
+    mjd_per_step = hdulist[1].header["EXPSTART"] + times.copy().astype(np.float64) * second_per_mjd
+    mjd = mjd_per_step[:-1]                                                   
+    t = Time(mjd, format="mjd") 
+    mjdtime = [x.value for x in t]
+    
+    # Creates different tables, one for each region of detector
+    info_dict = {"segment": segment, "rootname": rootname,"latitude": lat, 
+                 "longitude": lon, "time": mjdtime, "pha": np.arange(32), 
+                 "exptime": timestep}
+    dark_dict = {}
     for x in location:
         region_area = (location.get(x)[1] - location.get(x)[0]) * (location.get(x)[3] - location.get(x)[2])
+        # In reality this is not an issue since YCORR=YFULL for darks.
         if "location" == "psa_1291":
             coord_x = "XCORR"
             coord_y = "YFULL"
         else:
             coord_x = "XCORR"
             coord_y = "YCORR"
-        index = np.where((events["PHA"] > pha[0]) &
-                         (events["PHA"] < pha[1]) &
-                         (events[coord_x] > location.get(x)[0]) &
-                         (events[coord_x] < location.get(x)[1]) &
-                         (events[coord_y] > location.get(x)[2]) &
-                         (events[coord_y] < location.get(x)[3]))
-        unfiltered_pha = np.where((events[coord_x] > location.get(x)[0]) &
-                                  (events[coord_x] < location.get(x)[1]) &
-                                  (events[coord_y] > location.get(x)[2]) &
-                                  (events[coord_y] < location.get(x)[3]))
-        counts = np.histogram(events[index]["time"], bins=times)[0]
-        counts_unfiltered_pha = np.histogram(events[unfiltered_pha]["time"], bins=times)[0]
-        lat = timeline["latitude"][::timestep][:-1].copy()
-        lon = timeline["longitude"][::timestep][:-1].copy()
-        second_per_mjd = 1.15741e-5
-        mjd_per_step = hdulist[1].header["EXPSTART"] + times.copy().astype(np.float64) * second_per_mjd
-        mjd = mjd_per_step[:-1]                                                   
-        t = Time(mjd, format="mjd") 
-        decyear = t.decimalyear    
-        mjdtime = [x.value for x in t]                                               
-        counts = counts / region_area / timestep                                             
-        counts_unfiltered_pha = counts_unfiltered_pha / region_area / timestep               
-        d[x] = pd.DataFrame({"region": x, "segment": segment, "darkrate": counts, "time": mjdtime,
-                            "xcorr_min": location.get(x)[0], "xcorr_max": location.get(x)[1],    
-                             "ycorr_min": location.get(x)[2], "ycorr_max": location.get(x)[3],   
-                             "longitude": lon, "latitude": lat, "rootname": rootname, 
-                             "unfiltered_pha_counts": counts_unfiltered_pha})    
-    # Combine all 5 tables for different regions                                  
-    dark_df = pd.concat([d["inner"], d["bottom"], d["top"], d["left"], d["right"], 
-                         d["lp1_psa_1291"], d["lp2_psa_1291"], d["lp3_psa_1291"],
-                         d["lp4_psa_1291"]]) 
-    # Flag data taken near SAA where flag=1 denotes data outside the SAA.
-    dark_df["saa_flag"] = np.where(dark_df.eval("latitude > 10 or longitude < 260"), 1, 0)
+        counts_pha = []
+        for phabin in range(32):
+            index = np.where((events["PHA"] == phabin) &
+                             (events[coord_x] > location.get(x)[0]) &
+                             (events[coord_x] < location.get(x)[1]) &
+                             (events[coord_y] > location.get(x)[2]) &
+                             (events[coord_y] < location.get(x)[3]))
+            counts = np.histogram(events[index]["time"], bins=times)[0]
+            counts_pha.append(counts)
+        counts_time = np.dstack(counts_pha)[0]
+        region_d = {"darks": counts_time, "xcorr_min": location[x][0], 
+                    "xcorr_max": location[x][1], "ycorr_min": location[x][2], 
+                    "ycorr_max": location[x][3], "region_area": region_area}
+        dark_dict[x] = region_d
     hdulist.close() 
     
-    return dark_df
+    return info_dict, dark_dict
 
 def get_solar_data(solardir):
     """
@@ -152,7 +147,7 @@ def parse_solar_files(files):
     input_list.sort()
 
     for item in input_list:
-        print("Reading {}".format(item))
+#        print("Reading {}".format(item))
 
         # clean up Q4 files when year-long file exists
         if ("Q4_" in item) and os.path.exists(item.replace("Q4_", "_")):
@@ -191,7 +186,6 @@ def get_1291_box():
             the 1291 extraction box for that segment and LP combo.
     """    
     
-    import os
     if "CRDS_PATH" not in os.environ:
         if os.path.exists("/grp/crds/cache"):
             os.environ["CRDS_PATH"] = "/grp/crds/cache"

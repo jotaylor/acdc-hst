@@ -73,29 +73,25 @@ and start exploring! For tips on SQLite queries, click [here](https://www.tutori
 The format of the database is as follows:
 
 **Darks**
-| column                  | type    | description                     |
-| ----------------------- | ------- | ------------------------------- |
-| id                      | Integer | Primary key ID number           |
-| filename                | String  | E.g. ipppssoot_corrtag_a.fits   |
-| rootname                | String  | E.g. ipppssoot                  |
-| segment                 | String  | COS FUV segment                 |
-| expstart                | Float   | MJD start time                  |
-| exptime                 | Float   | Exposure time (s)               |
-| hva                     | Integer | High Voltage for FUVA           |
-| hvb                     | Integer | High Voltage for FUVB           |
-| latitude                | Float   | Observatory latitude            |
-| longitude               | Float   | Observatory longitude           |
-| darkrate                | Float   | Dark counts/s                   |
-| time                    | Float   | Time for each darkrate value    |
-| region                  | String  | Detector region for dark rate   |
-| xcorr_min               | Integer | Region starting XCORR           |
-| xcorr_max               | Integer | Region ending XCORR             |
-| ycorr_min               | Integer | Region staring YCORR            |
-| ycorr_max               | Integer | Region ending YCORR             |
-| saa_flag                | Integer | Data near SAA = 0, else 1       |
-| unfiltered_pha_counts   | Float   | Counts not filtered by PHA      |
-| solar_flux              | Float   | Solar flux at each sampled time |
-| fileloc                 | String  | STScI disk location of file     |
+| column       | type    | description                                            |
+| ------------ | ------- | ------------------------------------------------------ |
+| id           | Integer | Primary key ID number                                  |
+| filename     | String  | E.g. ipppssoot_corrtag_a.fits                          |
+| segment      | String  | COS FUV segment                                        |
+| expstart     | Float   | MJD start time                                         |
+| exptime      | Float   | Exposure time (s)                                      |
+| hv           | Integer | High Voltage                                           |
+| latitude     | Float   | Observatory latitude                                   |
+| longitude    | Float   | Observatory longitude                                  |
+| region       | String  | Region of interest on segment                          |
+| region_area  | String  | Area of region                                         |
+| xcorr_min    | Integer | Region starting XCORR                                  |
+| xcorr_max    | Integer | Region ending XCORR                                    |
+| ycorr_min    | Integer | Region staring YCORR                                   |
+| ycorr_max    | Integer | Region ending YCORR                                    |
+| solar_flux   | Float   | Interpolated solar flux at expstart                    |
+| fileloc      | String  | STScI disk location of file                            |
+| dark_pha[x]  | Integer | Total dark counts over region for PHA [x] 0 through 31)|
 
 **Solar**
 | column | type  | description                        |
