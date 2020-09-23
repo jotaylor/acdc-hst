@@ -1,0 +1,6 @@
+__pycache__/
+.ipynb_checkpoints/
+cos_dark.egg-info/
+superdarks/
+*.p
+old/
