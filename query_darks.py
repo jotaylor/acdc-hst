@@ -27,7 +27,7 @@ def all_darks(dbname=DBNAME):
     session, engine = load_connection(dbname)
 
     # Define columns to return from database
-    cols = ["expstart", "solar_flux", "latitude", "longitude", "segment", "hv", "region"]
+    cols = ["expstart", "solar_flux", "latitude", "longitude", "segment", "hv", "region", "saa_distance"]
     cols += [f"dark_pha{x}" for x in range(0,32)]
     if TESTING is True: 
         cols = ["expstart", "latitude", "longitude", "solar_flux", "dark_pha11"]
@@ -46,7 +46,7 @@ def all_darks(dbname=DBNAME):
     
     return df
 
-def files_by_mjd(mjdstart, mjdend, segment="FUVA", morecols=[],
+def files_by_mjd(mjdstart, mjdend, segment="FUVA", hv=167, morecols=[],
                  dbname=DBNAME):
     
 	# Connect to database
@@ -54,10 +54,18 @@ def files_by_mjd(mjdstart, mjdend, segment="FUVA", morecols=[],
 
     cols = ["fileloc"]
 
-    query = session.query(Darks.fileloc.distinct())\
+    if hv == "*" or hv == None:
+        query = session.query(Darks.fileloc.distinct())\
                 .filter(Darks.expstart >= mjdstart)\
                 .filter(Darks.expstart < mjdend)\
                 .filter(Darks.segment == segment)\
+                .order_by(Darks.expstart)
+    else:
+        query = session.query(Darks.fileloc.distinct())\
+                .filter(Darks.expstart >= mjdstart)\
+                .filter(Darks.expstart < mjdend)\
+                .filter(Darks.segment == segment)\
+                .filter(Darks.hv == hv)\
                 .order_by(Darks.expstart)
     results = query.all()
     
