@@ -4,8 +4,9 @@ from schema import Base, Darks, Solar
 
 with open("settings.yaml", "r") as f:
     SETTINGS = yaml.load(f)
+    DBNAME = SETTINGS["dbname"]
 
-def create_db(connection_string=SETTINGS["connection_string"]):
+def create_db(dbname=DBNAME):
     """
     Create the database, with name specified from `settings.yaml`.
 
@@ -14,7 +15,7 @@ def create_db(connection_string=SETTINGS["connection_string"]):
             `dialect+driver://username:password@host:port/database`
     """
 
-    session, engine = load_connection(SETTINGS["connection_string"])
+    session, engine = load_connection(dbname)
     # It's important that the Base from schema.py be used (from the import)
     Base.metadata.create_all(engine)
     print("Created database cos_dark.db")
