@@ -12,6 +12,8 @@ import create_db
 from connect_db import load_connection
 from schema import Solar, Darks
 from calculate_dark import measure_darkrate, parse_solar_files, get_1291_box
+from within_saa import get_saa_poly
+from saa_distance import Distance3dPointTo3dCoords
 
 # For testing purposes only. If TESTING = True, only one value is recorded per
 # input dataset to save time. If TIMING = True, recorded runtime for each insert
@@ -21,9 +23,9 @@ TIMING = False
 
 with open("settings.yaml", "r") as f:
     SETTINGS = yaml.load(f)
+    DBNAME = SETTINGS["dbname"]
 
-def populate_solar(files, connection_string=SETTINGS["connection_string"],
-                   db_table=Solar):
+def populate_solar(files, dbname=DBNAME, db_table=Solar):
     """
     Populate the Solar database table. This can be used to add new files
     or ingest all data from scratch.
@@ -32,14 +34,15 @@ def populate_solar(files, connection_string=SETTINGS["connection_string"],
     
     Args:
         files (array-like): Names of solar flux files to parse.
-        connection_string (str): Connection string to DB of the form:
-            `dialect+driver://username:password@host:port/database`
+        dbname (str): The location of the SQLite database, with full path, e.g.
+            /path/to/cos_dark.db 
+            If in the current directory, do not include . or ./ 
         db_table (:obj:`sqlalchemy.Table`): Name of table to update, 
             defaults to Solar.
     """
     
     # Connect to database.
-    session, engine = load_connection(connection_string)
+    session, engine = load_connection(dbname)
     base = declarative_base(engine)
     solar_table = Table(db_table.__tablename__, base.metadata, autoload=True)
 
@@ -68,8 +71,7 @@ def populate_solar(files, connection_string=SETTINGS["connection_string"],
 
     print("Updated table Solar")
 
-def populate_darks(files, connection_string=SETTINGS["connection_string"], 
-                   db_table=Darks):
+def populate_darks(files, dbname=DBNAME, db_table=Darks):
     """
     Populate the Darks database table. This can be used to add new files
     or ingest all data from scratch.
@@ -78,8 +80,9 @@ def populate_darks(files, connection_string=SETTINGS["connection_string"],
     
     Args:
         files (array-like): Names of COS dark files to ingest.
-        connection_string (str): Connection string to DB of the form:
-            `dialect+driver://username:password@host:port/database`
+        dbname (str): The location of the SQLite database, with full path, e.g.
+            /path/to/cos_dark.db 
+            If in the current directory, do not include . or ./ 
         db_table (:obj:`sqlalchemy.Table`): Name of table to update,
             defaults to Darks.
     """
@@ -87,9 +90,14 @@ def populate_darks(files, connection_string=SETTINGS["connection_string"],
     psa_1291 = get_1291_box()
 
     # Connect to database.
-    session, engine = load_connection(connection_string)
+    session, engine = load_connection(dbname)
     base = declarative_base(engine)
     darks_table = Table(db_table.__tablename__, base.metadata, autoload=True)
+    
+    # Handle distance to SAA
+    saa_dists = {}
+    saa_lat, saa_lon = get_saa_poly()
+
     for i,item in enumerate(files):
         loop0 = timer()
         all_dark_rows = []
@@ -124,8 +132,16 @@ def populate_darks(files, connection_string=SETTINGS["connection_string"],
            "fileloc": item}
         for j in range(len(info["time"])):
             dark_data1 = dark_data0.copy()
-            dark_data1["latitude"] = round(info["latitude"][j], 6)
-            dark_data1["longitude"] = round(info["longitude"][j], 6)
+            lat = round(info["latitude"][j], 6)
+            lon = round(info["longitude"][j], 6)
+            if (lat, lon) not in saa_dists:
+                dist = Distance3dPointTo3dCoords(lat, lon, saa_lat, saa_lon)
+                saa_dists[(lat, lon)] = dist
+            else:
+                dist = saa_dists[(lat, lon)]
+            dark_data1["latitude"] = lat
+            dark_data1["longitude"] = lon
+            dark_data1["saa_distance"] = dist
             dark_data1["solar_flux"] = solar_flux_interp[j]
             dark_data1["expstart"] = round(info["time"][j], 6)
             # Loop over regions.
