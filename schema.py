@@ -16,6 +16,7 @@ class Darks(Base):
     hv = Column(Integer())
     latitude = Column(Float())
     longitude = Column(Float())
+    saa_distance= Column(Float())
     region = Column(String(15))
     region_area = Column(Integer())
     xcorr_min = Column(Integer())
