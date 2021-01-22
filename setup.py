@@ -27,9 +27,9 @@ setup(
                         "sqlalchemy",
                         "pymysql",
                         "pyyaml",
-                        "bokeh",
-                        "holoviews",
-                        "datashader",
+                        "bokeh>=2.1.1",
+                        "holoviews>=1.13.4",
+                        "datashader>=0.11.0",
                         "dask"]
     )
 
