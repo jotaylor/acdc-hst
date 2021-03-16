@@ -1,3 +1,4 @@
+import asdf
 from astropy.io import fits
 from astropy.table import Table
 import pandas as pd
@@ -6,13 +7,20 @@ from calcos import ccos
 
 from query_darks import files_by_mjd
 
+# Re-binning method from 
+# https://stackoverflow.com/questions/14916545/numpy-rebinning-a-2d-array
+TESTING = False
 HV = 167
 SEGMENT = "FUVA"
 START_DEC = 2017.
-START_MJD = 57100
-#START_MJD = 57754
+if TESTING is True:
+    START_MJD = 57100
+else:
+    START_MJD = 57754
 BIN_X = 8
 BIN_Y = 2
+
+# This is here for reference, these are the original definitions from calculate_dark.py
 #if segment == "FUVA":
 #    location = {"inner": (1260, 15119, 375, 660), "bottom": (1060, 15250, 296, 375),
 #                "top": (1060, 15250, 660, 734), "left": (1060, 1260, 296, 734),
@@ -23,17 +31,20 @@ BIN_Y = 2
 #                "right": (14990, 15182, 360, 785)}
 
 def make_clean_superdark(hv=HV, segment=SEGMENT, start_mjd=START_MJD, 
-                         ndays=100, gsagtab="41g2040ol_gsag.fits"):
+                         ndays=100, gsagtab="41g2040ol_gsag.fits",
+                         pha_step=1):
     # Inner region only, this divides evenly by BIN_X and BIN_Y
     if segment == "FUVA":
-        x0 = 8000
-        x1 = 8024 
-#        x0 = 1264
-#        x1 = 15112 
-        y0 = 436
-        y1 = 442
-#        y0 = 376
-#        y1 = 660
+        if TESTING is True:
+            x0 = 8000
+            x1 = 8024 
+            y0 = 436
+            y1 = 442
+        else:
+            x0 = 1264
+            x1 = 15112 
+            y0 = 376
+            y1 = 660
     else:
         x0 = 1000
         x1 = 14984 
@@ -56,17 +67,26 @@ def make_clean_superdark(hv=HV, segment=SEGMENT, start_mjd=START_MJD,
     df0["Y0"] = df0["Y0"]//2
     df0["Y1"] = df0["Y1"]//2
     df0 = df0.astype("int32")
-    notfilled = True
 
+    notfilled = True
+    pha_images = {}
+    start = start_mjd
+    total_days = 0
+    pha_range = np.arange(1, 31, pha_step)
+    if pha_range[-1] != 30:
+        pha_range = np.concatenate( (pha_range, np.array([30])) )
+    
     while notfilled is True:
+        total_days += ndays
+        end = start + ndays
         notfilled = False
-        print(ndays)
-        df = df0.loc[(df0["DATE"] > start_mjd) & (df0["DATE"] < start_mjd+ndays)]
-        dark_df = files_by_mjd(start_mjd, start_mjd+ndays, segment=segment, hv=hv)
+        print(total_days)
+        df = df0.loc[(df0["DATE"] > start) & (df0["DATE"] < end)]
+        dark_df = files_by_mjd(start, end, segment=segment, hv=hv)
         darks = dark_df["fileloc"].values
-        pha_images = {}
-        for i in range(0,32):
-            sum_image = bin_corrtag(darks, pha=i)
+        total_exptime = sum([fits.getval(x, "exptime", 1) for x in darks])
+        for i in range(len(pha_range)-1):
+            sum_image = bin_corrtag(darks, phastart=pha_range[i], phaend=pha_range[i+1])
 #            inner_image = sum_image[(1024-y1):(1024-y0), x0:x1]
             tmp = sum_image.reshape(1024 // 2, 2, 16384 // 8, 8)
             binned = tmp.sum(axis=3).sum(axis=1)
@@ -78,16 +98,30 @@ def make_clean_superdark(hv=HV, segment=SEGMENT, start_mjd=START_MJD,
             for j in range(len(df)): 
                 binned_inner[df.iloc[j]["Y0_INVERT"]:df.iloc[j]["Y1_INVERT"], df.iloc[j]["X0"]:df.iloc[j]["X1"]] = 999
             zeros = np.where(binned_inner == 0)
-            print(i, binned_inner)
             if len(zeros[0]) != 0:
                 notfilled = True
-                break
-            pha_images[i] = binned_inner
-        ndays += 1000
-    import pdb; pdb.set_trace() 
+                if TESTING is True:
+                    break
+            if i in pha_images:
+                pha_images[i] += binned_inner
+            else:
+                pha_images[i] = binned_inner
+        start = end
+        if total_days >= 100:
+            notfilled = False
+    pha_images["mjdstart"] = start_mjd
+    pha_images["mjdend"] = start_mjd+total_days
+    pha_images["segment"] = segment
+    pha_images["hv"] = hv
+    pha_images["total_exptime"] = total_exptime
+    af = asdf.AsdfFile(pha_images)
+    outfile = f"superdark_{segment}_{hv}.asdf"
+    af.write_to(outfile)
+    print(f"Wrote {outfile}")
+
 
 def bin_corrtag(corrtag_list, xtype='XCORR', ytype='YCORR', sdqflags=0,
-                pha=0):
+                phastart, phaend):
     """Bin corrtag event lists into a 2D image.
 
     Modifed from /user/jotaylor/git/jotools/utils.py
@@ -112,7 +146,7 @@ def bin_corrtag(corrtag_list, xtype='XCORR', ytype='YCORR', sdqflags=0,
     for filename in corrtag_list:
         image = np.zeros((1024, 16384)).astype(np.float32)
         events = fits.getdata(filename, 1)
-        inds = np.where(events["pha"] == pha)
+        inds = np.where((events["pha"] >= phastart) & (events["pha"] <= phaend))
         events = events[inds]
         if not len(inds[0]):
             print(f"No counts for PHA={pha}")
