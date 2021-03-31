@@ -72,6 +72,7 @@ def make_clean_superdark(hv=HV, segment=SEGMENT, start_mjd=START_MJD,
     pha_images = {}
     start = start_mjd
     total_days = 0
+    total_exptime = 0
     pha_range = np.arange(1, 31, pha_step)
     if pha_range[-1] != 30:
         pha_range = np.concatenate( (pha_range, np.array([30])) )
@@ -84,7 +85,7 @@ def make_clean_superdark(hv=HV, segment=SEGMENT, start_mjd=START_MJD,
         df = df0.loc[(df0["DATE"] > start) & (df0["DATE"] < end)]
         dark_df = files_by_mjd(start, end, segment=segment, hv=hv)
         darks = dark_df["fileloc"].values
-        total_exptime = sum([fits.getval(x, "exptime", 1) for x in darks])
+        total_exptime += sum([fits.getval(x, "exptime", 1) for x in darks])
         for i in range(len(pha_range)-1):
             sum_image = bin_corrtag(darks, phastart=pha_range[i], phaend=pha_range[i+1])
 #            inner_image = sum_image[(1024-y1):(1024-y0), x0:x1]
@@ -102,13 +103,18 @@ def make_clean_superdark(hv=HV, segment=SEGMENT, start_mjd=START_MJD,
                 notfilled = True
                 if TESTING is True:
                     break
+            key = f"pha{pha_range[i]}-{pha_range[i+1]}"
             if i in pha_images:
-                pha_images[i] += binned_inner
+                pha_images[key] += binned_inner
             else:
-                pha_images[i] = binned_inner
+                pha_images[key] = binned_inner
         start = end
-        if total_days >= 100:
+        if total_days >= 300:
             notfilled = False
+    pha_images["xstart"] = x0
+    pha_images["ystart"] = y0
+    pha_images["xend"] = x1
+    pha_images["yend"] = y1
     pha_images["mjdstart"] = start_mjd
     pha_images["mjdend"] = start_mjd+total_days
     pha_images["segment"] = segment
@@ -120,8 +126,7 @@ def make_clean_superdark(hv=HV, segment=SEGMENT, start_mjd=START_MJD,
     print(f"Wrote {outfile}")
 
 
-def bin_corrtag(corrtag_list, xtype='XCORR', ytype='YCORR', sdqflags=0,
-                phastart, phaend):
+def bin_corrtag(corrtag_list, phastart, phaend, xtype='XCORR', ytype='YCORR', sdqflags=0):
     """Bin corrtag event lists into a 2D image.
 
     Modifed from /user/jotaylor/git/jotools/utils.py
