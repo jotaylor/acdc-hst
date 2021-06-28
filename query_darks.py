@@ -79,8 +79,7 @@ def counts_by_mjd(mjdstart, mjdend, morecols=[],
     
 	# Connect to database
     session, engine = load_connection(dbname)
-
-    cols = ["segment", "exptime", "hv"]
+    cols = ["expstart", "solar_flux", "latitude", "longitude", "segment", "hv", "region", "saa_distance"]
     cols += [f"dark_pha{x}" for x in range(0,32)]
     cols += morecols
 
