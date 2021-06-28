@@ -3,6 +3,7 @@ solar_dir: "/astro/sveash/solar_data/*txt"
 dbsettings: 
     "cos_dark": 
         dbtype: "sqlite"
+        dbname: "cos_dark"
         loc: "/astro/sveash/cos_dark/cos_dark.db"
     "dark_events":
         dbtype: "mysql"

@@ -21,9 +21,8 @@ def load_connection(dbsettings, echo=False):
         engine (:obj:`engine` object): Provides a source of database 
             connectivity and behavior.
     """
-
     if dbsettings["dbtype"] == "sqlite":
-        connection_string = os.path.join("sqlite://", dbname)
+        connection_string = f"sqlite:///{dbsettings['loc']}"
     elif dbsettings["dbtype"] == "mysql":
         pswd = getpass.getpass(f"Enter password for {dbsettings['dbname']}: ")
         connection_string = f"mysql+pymysql://{dbsettings['user']}:{pswd}@{dbsettings['host']}:{dbsettings['port']}/{dbsettings['dbname']}"

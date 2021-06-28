@@ -22,26 +22,23 @@ from calculate_dark import measure_darkrate, parse_solar_files, get_1291_box
 TESTING = False
 TIMING = False
 
-with open("settings.yaml", "r") as f:
-    SETTINGS = yaml.load(f)
-    DBNAME = SETTINGS["dbname"]
-
-def populate_darkevents(files, dbname=DBNAME, db_table=DarkEvents):
+def populate_darkevents(files, dbname="dark_events", db_table=DarkEvents):
     """
     Populate the DarkEvents database table. This can be used to add new files
     or ingest all data from scratch.
     
     Args:
         files (array-like): Names of dark exposure corrtags. 
-        dbname (str): The location of the SQLite database, with full path, e.g.
-            /path/to/cos_dark.db 
-            If in the current directory, do not include . or ./ 
+        dbname (str): The name of the database to update. 
         db_table (:obj:`sqlalchemy.Table`): Name of table to update, 
             defaults to DarkEvents.
     """
     
     # Connect to database.
-    session, engine = load_connection(dbname)
+    with open("settings.yaml", "r") as f:
+        settings = yaml.load(f)
+        dbsettings = settings["dbsettings"][dbname]
+    session, engine = load_connection(dbsettings)
     base = declarative_base(engine)
     events_table = Table(db_table.__tablename__, base.metadata, autoload=True)
 
@@ -87,7 +84,7 @@ def populate_darkevents(files, dbname=DBNAME, db_table=DarkEvents):
 
     print("Updated table Solar")
 
-def populate_solar(files, dbname=DBNAME, db_table=Solar):
+def populate_solar(files, dbname="cos_dark", db_table=Solar):
     """
     Populate the Solar database table. This can be used to add new files
     or ingest all data from scratch.
@@ -104,7 +101,10 @@ def populate_solar(files, dbname=DBNAME, db_table=Solar):
     """
     
     # Connect to database.
-    session, engine = load_connection(dbname)
+    with open("settings.yaml", "r") as f:
+        settings = yaml.load(f)
+        dbsettings = settings["dbsettings"][dbname]
+    session, engine = load_connection(dbsettings)
     base = declarative_base(engine)
     solar_table = Table(db_table.__tablename__, base.metadata, autoload=True)
 
@@ -136,7 +136,7 @@ def populate_solar(files, dbname=DBNAME, db_table=Solar):
     engine.dispose()
     print("Updated table Solar")
 
-def populate_darks(files, dbname=DBNAME, db_table=Darks):
+def populate_darks(files, dbname="cos_dark", db_table=Darks):
     """
     Populate the Darks database table. This can be used to add new files
     or ingest all data from scratch.
@@ -145,9 +145,7 @@ def populate_darks(files, dbname=DBNAME, db_table=Darks):
     
     Args:
         files (array-like): Names of COS dark files to ingest.
-        dbname (str): The location of the SQLite database, with full path, e.g.
-            /path/to/cos_dark.db 
-            If in the current directory, do not include . or ./ 
+        dbname (str): The name of the database to update. 
         db_table (:obj:`sqlalchemy.Table`): Name of table to update,
             defaults to Darks.
     """
@@ -155,7 +153,10 @@ def populate_darks(files, dbname=DBNAME, db_table=Darks):
     psa_1291 = get_1291_box()
 
     # Connect to database.
-    session, engine = load_connection(dbname)
+    with open("settings.yaml", "r") as f:
+        settings = yaml.load(f)
+        dbsettings = settings["dbsettings"][dbname]
+    session, engine = load_connection(dbsettings)
     base = declarative_base(engine)
     darks_table = Table(db_table.__tablename__, base.metadata, autoload=True)
     
@@ -240,9 +241,12 @@ def populate_darks(files, dbname=DBNAME, db_table=Darks):
     engine.dispose()
     print("Updated table Darks")
 
-if __name__ == "__main__":
-    if not os.path.exists("cos_dark.db"):
-        create_db.create_db()
+def update_cos_dark(dbname):
+    with open("settings.yaml", "r") as f:
+        settings = yaml.load(f)
+        dbsettings = settings["dbsettings"][dbname]
+    if not os.path.exists(dbsettings["loc"]):
+        create_db.create_db(dbname)
     start = datetime.datetime.now()
     print("Start time: {}".format(start))
     solar_files = glob.glob(os.path.join(SETTINGS["solar_dir"]))
@@ -252,3 +256,16 @@ if __name__ == "__main__":
     end = datetime.datetime.now()
     print("End time: {}".format(end))
     print("Total time: {}".format(end-start))
+
+
+if __name__ == "__main__":
+    parser = argparser.ArgumentParser()
+    parser.add_argument("--dbname", help="Database to update")
+    args = parser.parse_args()
+    dbname = args.dbname
+    if dbname == "cos_dark":
+        update_cos_dark(dbname)
+    elif dbname == "dark_events":
+        update_dark_events(dbname)
+    else:
+        print("Invalid database name supplied: currently supported databases are cos_dark and dark_events")
