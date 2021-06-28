@@ -1,3 +1,4 @@
+import argparse
 import asdf
 from astropy.io import fits
 from astropy.table import Table
@@ -5,13 +6,15 @@ import pandas as pd
 import numpy as np
 from calcos import ccos
 
-from query_darks import files_by_mjd
+from query_cos_dark import files_by_mjd
 
 # Re-binning method from 
 # https://stackoverflow.com/questions/14916545/numpy-rebinning-a-2d-array
 TESTING = False
-HV = 167
-SEGMENT = "FUVA"
+#HV = 167
+HV = 175
+#SEGMENT = "FUVA"
+SEGMENT = "FUVB"
 START_DEC = 2017.
 if TESTING is True:
     START_MJD = 57100
@@ -116,12 +119,13 @@ def make_clean_superdark(hv=HV, segment=SEGMENT, start_mjd=START_MJD,
     pha_images["xend"] = x1
     pha_images["yend"] = y1
     pha_images["mjdstart"] = start_mjd
-    pha_images["mjdend"] = start_mjd+total_days
+    end_mjd = start_mjd+total_days
+    pha_images["mjdend"] = end_mjd
     pha_images["segment"] = segment
     pha_images["hv"] = hv
     pha_images["total_exptime"] = total_exptime
     af = asdf.AsdfFile(pha_images)
-    outfile = f"superdark_{segment}_{hv}.asdf"
+    outfile = f"superdark_{segment}_{hv}_{start_mjd}_{end_mjd}.asdf"
     af.write_to(outfile)
     print(f"Wrote {outfile}")
 
@@ -172,4 +176,14 @@ def bin_corrtag(corrtag_list, phastart, phaend, xtype='XCORR', ytype='YCORR', sd
 
 
 if __name__ == "__main__":
-    make_clean_superdark() 
+    parser = argparse.ArgumentParser()
+    parser.add_argument("--hv", help="HV setting of interest")
+    parser.add_argument("--segment", help="Segment of interest")
+    parser.add_argument("--mjdstart", type=int, help="MJD start date")
+    parser.add_argument("--ndays", type=int, 
+                        help="Number of days beyond MJD start to gather data")
+    parser.add_argument("--phastep", default=1, type=int,
+                        help="Size of PHA binning")
+    args = parser.parse_args() 
+    make_clean_superdark(args.hv, args.segment, args.mjdstart, args.ndays,
+                         pha_step=args.phastep) 
