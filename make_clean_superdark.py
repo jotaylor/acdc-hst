@@ -180,7 +180,7 @@ if __name__ == "__main__":
     parser.add_argument("--hv", help="HV setting of interest")
     parser.add_argument("--segment", help="Segment of interest")
     parser.add_argument("--mjdstart", type=int, help="MJD start date")
-    parser.add_argument("--ndays", type=int, 
+    parser.add_argument("--ndays", type=int, default=100, 
                         help="Number of days beyond MJD start to gather data")
     parser.add_argument("--phastep", default=1, type=int,
                         help="Size of PHA binning")
