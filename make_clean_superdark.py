@@ -12,8 +12,6 @@ TESTING = False
 
 # Re-binning method from 
 # https://stackoverflow.com/questions/14916545/numpy-rebinning-a-2d-array
-BIN_X = 8
-BIN_Y = 2
 # This is here for reference, these are the original definitions from calculate_dark.py
 #if segment == "FUVA":
 #    location = {"inner": (1260, 15119, 375, 660), "bottom": (1060, 15250, 296, 375),
@@ -25,8 +23,9 @@ BIN_Y = 2
 #                "right": (14990, 15182, 360, 785)}
 
 def make_clean_superdark(hv, segment, start_mjd, ndays=300, dayint=100, 
-                         gsagtab="41g2040ol_gsag.fits", pha_step=1):
-    # Inner region only, this divides evenly by BIN_X and BIN_Y
+                         gsagtab="41g2040ol_gsag.fits", pha_step=1, bin_x=8,
+                         bin_y=2):
+    # Inner region only, this divides evenly by default bin sizes
     if segment == "FUVA":
         x0 = 1264
         x1 = 15112 
@@ -37,8 +36,8 @@ def make_clean_superdark(hv, segment, start_mjd, ndays=300, dayint=100,
         x1 = 14984 
         y0 = 405
         y1 = 739 
-#    x = (x1-x0)/BIN_X
-#    y = (y1-y0)/BIN_Y
+#    x = (x1-x0)/bin_x
+#    y = (y1-y0)/bin_y
 #    superdark = np.zeros(x*y).reshape((y,x))
 
     superdark = np.zeros(1024*16384).reshape((1024, 16384))
@@ -63,10 +62,10 @@ def make_clean_superdark(hv, segment, start_mjd, ndays=300, dayint=100,
     df0["Y1"] = df0["Y0"] + df0["DY"]
     df0["Y0_INVERT"] = 1024-df0["Y1"]
     df0["Y1_INVERT"] = 1024-df0["Y0"]
-    df0["X0"] = df0["X0"]//BIN_X
-    df0["X1"] = df0["X1"]//BIN_X
-    df0["Y0"] = df0["Y0"]//BIN_Y
-    df0["Y1"] = df0["Y1"]//BIN_Y
+    df0["X0"] = df0["X0"]//bin_x
+    df0["X1"] = df0["X1"]//bin_x
+    df0["Y0"] = df0["Y0"]//bin_y
+    df0["Y1"] = df0["Y1"]//bin_y
     df0 = df0.astype("int32")
 
     notfilled = True
@@ -92,12 +91,12 @@ def make_clean_superdark(hv, segment, start_mjd, ndays=300, dayint=100,
         for i in range(len(pha_range)-1):
             sum_image = bin_corrtag(darks, phastart=pha_range[i], phaend=pha_range[i+1])
 #            inner_image = sum_image[(1024-y1):(1024-y0), x0:x1]
-            tmp = sum_image.reshape(1024 // BIN_Y, BIN_Y, 16384 // BIN_X, BIN_X)
+            tmp = sum_image.reshape(1024 // bin_y, bin_y, 16384 // bin_x, bin_x)
             binned = tmp.sum(axis=3).sum(axis=1)
-            b_y0 = (1024-y1)//BIN_Y
-            b_y1 = (1024-y0)//BIN_Y
-            b_x0 = (16384-x1)//BIN_X
-            b_x1 = (16384-x0)//BIN_X
+            b_y0 = (1024-y1)//bin_y
+            b_y1 = (1024-y0)//bin_y
+            b_x0 = (16384-x1)//bin_x
+            b_x1 = (16384-x0)//bin_x
             binned_inner = binned[b_y0:b_y1, b_x0:b_x1]
             for j in range(len(df)): 
                 binned_inner[df.iloc[j]["Y0_INVERT"]:df.iloc[j]["Y1_INVERT"], df.iloc[j]["X0"]:df.iloc[j]["X1"]] = 999
