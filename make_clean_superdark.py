@@ -8,21 +8,12 @@ from calcos import ccos
 
 from query_cos_dark import files_by_mjd
 
+TESTING = False
+
 # Re-binning method from 
 # https://stackoverflow.com/questions/14916545/numpy-rebinning-a-2d-array
-TESTING = False
-#HV = 167
-HV = 175
-#SEGMENT = "FUVA"
-SEGMENT = "FUVB"
-START_DEC = 2017.
-if TESTING is True:
-    START_MJD = 57100
-else:
-    START_MJD = 57754
 BIN_X = 8
 BIN_Y = 2
-
 # This is here for reference, these are the original definitions from calculate_dark.py
 #if segment == "FUVA":
 #    location = {"inner": (1260, 15119, 375, 660), "bottom": (1060, 15250, 296, 375),
@@ -33,21 +24,14 @@ BIN_Y = 2
 #                "top": (809, 15182, 740, 785), "left": (809, 1000, 360, 785),
 #                "right": (14990, 15182, 360, 785)}
 
-def make_clean_superdark(hv=HV, segment=SEGMENT, start_mjd=START_MJD, 
-                         ndays=300, dayint=100, gsagtab="41g2040ol_gsag.fits",
-                         pha_step=1):
+def make_clean_superdark(hv, segment, start_mjd, ndays=300, dayint=100, 
+                         gsagtab="41g2040ol_gsag.fits", pha_step=1):
     # Inner region only, this divides evenly by BIN_X and BIN_Y
     if segment == "FUVA":
-        if TESTING is True:
-            x0 = 8000
-            x1 = 8024 
-            y0 = 436
-            y1 = 442
-        else:
-            x0 = 1264
-            x1 = 15112 
-            y0 = 376
-            y1 = 660
+        x0 = 1264
+        x1 = 15112 
+        y0 = 376
+        y1 = 660
     else:
         x0 = 1000
         x1 = 14984 
@@ -76,6 +60,7 @@ def make_clean_superdark(hv=HV, segment=SEGMENT, start_mjd=START_MJD,
     start = start_mjd
     total_days = 0
     total_exptime = 0
+    total_files = 0
     pha_range = np.arange(1, 31, pha_step)
     if pha_range[-1] != 30:
         pha_range = np.concatenate( (pha_range, np.array([30])) )
@@ -89,6 +74,7 @@ def make_clean_superdark(hv=HV, segment=SEGMENT, start_mjd=START_MJD,
         dark_df = files_by_mjd(start, end, segment=segment, hv=hv)
         darks = dark_df["fileloc"].values
         total_exptime += sum([fits.getval(x, "exptime", 1) for x in darks])
+        total_files += len(darks)
         for i in range(len(pha_range)-1):
             sum_image = bin_corrtag(darks, phastart=pha_range[i], phaend=pha_range[i+1])
 #            inner_image = sum_image[(1024-y1):(1024-y0), x0:x1]
@@ -125,6 +111,7 @@ def make_clean_superdark(hv=HV, segment=SEGMENT, start_mjd=START_MJD,
     pha_images["segment"] = segment
     pha_images["hv"] = hv
     pha_images["total_exptime"] = total_exptime
+    pha_images["total_files"] = total_files
     af = asdf.AsdfFile(pha_images)
     outfile = f"superdark_{segment}_{hv}_{start_mjd}_{end_mjd}.asdf"
     af.write_to(outfile)
