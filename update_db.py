@@ -36,7 +36,7 @@ def populate_darkevents(files, dbname="dark_events", db_table=DarkEvents):
     
     # Connect to database.
     with open("settings.yaml", "r") as f:
-        settings = yaml.load(f)
+        settings = yaml.load(f, Loader=yaml.SafeLoader)
         dbsettings = settings["dbsettings"][dbname]
     session, engine = load_connection(dbsettings)
     base = declarative_base(engine)
@@ -102,7 +102,7 @@ def populate_solar(files, dbname="cos_dark", db_table=Solar):
     
     # Connect to database.
     with open("settings.yaml", "r") as f:
-        settings = yaml.load(f)
+        settings = yaml.load(f, Loader=yaml.SafeLoader)
         dbsettings = settings["dbsettings"][dbname]
     session, engine = load_connection(dbsettings)
     base = declarative_base(engine)
@@ -154,7 +154,7 @@ def populate_darks(files, dbname="cos_dark", db_table=Darks):
 
     # Connect to database.
     with open("settings.yaml", "r") as f:
-        settings = yaml.load(f)
+        settings = yaml.load(f, Loader=yaml.SafeLoader)
         dbsettings = settings["dbsettings"][dbname]
     session, engine = load_connection(dbsettings)
     base = declarative_base(engine)
@@ -243,7 +243,7 @@ def populate_darks(files, dbname="cos_dark", db_table=Darks):
 
 def update_cos_dark(dbname):
     with open("settings.yaml", "r") as f:
-        settings = yaml.load(f)
+        settings = yaml.load(f, Loader=yaml.SafeLoader)
         dbsettings = settings["dbsettings"][dbname]
     if not os.path.exists(dbsettings["loc"]):
         create_db.create_db(dbname)
