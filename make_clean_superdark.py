@@ -42,17 +42,31 @@ def make_clean_superdark(hv, segment, start_mjd, ndays=300, dayint=100,
 #    superdark = np.zeros(x*y).reshape((y,x))
 
     superdark = np.zeros(1024*16384).reshape((1024, 16384))
-    gsag = Table.read(gsagtab, format="fits", hdu=28)
+    extfound = False
+    extnum = 1
+    hvkey = f"HVLEVEL{segment[-1]}"
+    while extfound is False:
+        try:
+            gsag_hv = fits.getval(gsagtab, hvkey, extnum)
+            gsag_seg = fits.getval(gsagtab, "segment", extnum)
+        except KeyError:
+            extnum += 1
+            continue
+        if gsag_hv == hv and gsag_seg == segment:
+            extfound = True
+        else:
+            extnum += 1
+    gsag = Table.read(gsagtab, format="fits", hdu=extnum)
     df0 = gsag.to_pandas()
     df0 = df0.rename(columns={"LX": "X0", "LY": "Y0"})
     df0["X1"] = df0["X0"] + df0["DX"]
     df0["Y1"] = df0["Y0"] + df0["DY"]
     df0["Y0_INVERT"] = 1024-df0["Y1"]
     df0["Y1_INVERT"] = 1024-df0["Y0"]
-    df0["X0"] = df0["X0"]//8
-    df0["X1"] = df0["X1"]//8
-    df0["Y0"] = df0["Y0"]//2
-    df0["Y1"] = df0["Y1"]//2
+    df0["X0"] = df0["X0"]//BIN_X
+    df0["X1"] = df0["X1"]//BIN_X
+    df0["Y0"] = df0["Y0"]//BIN_Y
+    df0["Y1"] = df0["Y1"]//BIN_Y
     df0 = df0.astype("int32")
 
     notfilled = True
@@ -69,7 +83,7 @@ def make_clean_superdark(hv, segment, start_mjd, ndays=300, dayint=100,
         total_days += dayint
         end = start + dayint
         notfilled = False
-        print(total_days)
+        print(f"Using darks from {start}-{end}, {total_days}/{ndays} days...")
         df = df0.loc[(df0["DATE"] > start) & (df0["DATE"] < end)]
         dark_df = files_by_mjd(start, end, segment=segment, hv=hv)
         darks = dark_df["fileloc"].values
@@ -78,7 +92,7 @@ def make_clean_superdark(hv, segment, start_mjd, ndays=300, dayint=100,
         for i in range(len(pha_range)-1):
             sum_image = bin_corrtag(darks, phastart=pha_range[i], phaend=pha_range[i+1])
 #            inner_image = sum_image[(1024-y1):(1024-y0), x0:x1]
-            tmp = sum_image.reshape(1024 // 2, 2, 16384 // 8, 8)
+            tmp = sum_image.reshape(1024 // BIN_Y, BIN_Y, 16384 // BIN_X, BIN_X)
             binned = tmp.sum(axis=3).sum(axis=1)
             b_y0 = (1024-y1)//BIN_Y
             b_y1 = (1024-y0)//BIN_Y
@@ -165,7 +179,7 @@ def bin_corrtag(corrtag_list, phastart, phaend, xtype='XCORR', ytype='YCORR', sd
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
-    parser.add_argument("--hv", help="HV setting of interest")
+    parser.add_argument("--hv", type=int, help="HV setting of interest")
     parser.add_argument("--segment", help="Segment of interest")
     parser.add_argument("--mjdstart", type=int, help="MJD start date")
     parser.add_argument("--ndays", type=int, default=100, 
