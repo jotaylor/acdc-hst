@@ -34,7 +34,7 @@ BIN_Y = 2
 #                "right": (14990, 15182, 360, 785)}
 
 def make_clean_superdark(hv=HV, segment=SEGMENT, start_mjd=START_MJD, 
-                         ndays=100, gsagtab="41g2040ol_gsag.fits",
+                         ndays=300, dayint=100, gsagtab="41g2040ol_gsag.fits",
                          pha_step=1):
     # Inner region only, this divides evenly by BIN_X and BIN_Y
     if segment == "FUVA":
@@ -81,8 +81,8 @@ def make_clean_superdark(hv=HV, segment=SEGMENT, start_mjd=START_MJD,
         pha_range = np.concatenate( (pha_range, np.array([30])) )
     
     while notfilled is True:
-        total_days += ndays
-        end = start + ndays
+        total_days += dayint
+        end = start + dayint
         notfilled = False
         print(total_days)
         df = df0.loc[(df0["DATE"] > start) & (df0["DATE"] < end)]
@@ -112,7 +112,8 @@ def make_clean_superdark(hv=HV, segment=SEGMENT, start_mjd=START_MJD,
             else:
                 pha_images[key] = binned_inner
         start = end
-        if total_days >= 300:
+        if total_days >= ndays:
+            print("Not every pixel had events at every PHA")
             notfilled = False
     pha_images["xstart"] = x0
     pha_images["ystart"] = y0
