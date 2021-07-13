@@ -1,77 +1,64 @@
-import sys
+from matplotlib.backends.backend_pdf import PdfPages
+import copy
 import asdf
-from math import *
 import numpy as np
-import matplotlib as mpl
 import matplotlib.pyplot as plt
-plt.rc('font', family='serif')
-mpl.rcParams.update({'font.size': 12})
-mpl.rcParams.update({'legend.labelspacing':0.25, 'legend.fontsize': 12})
-mpl.rcParams.update({'errorbar.capsize': 4})
+try:
+    plt.style.use("niceplot.mplstyle")
+except OSError:
+    pass
 
+def bin_superdark(superdark, bin_x=12, bin_y=6, bin_pha=26, 
+                  pha_start=3, pha_end=28, outdir="."):
 
+    with asdf.open(superdark) as af:
+        # First bin by PHA
+        binned = copy.deepcopy(af.tree[f"pha{pha_start}-{pha_start+1}"])
+        binned_ims = {}
+        counter = 1
+        for i in range(pha_start+1, pha_end+2):
+            if counter == bin_pha:
+                counter = 0
+                binned_ims[f"{i-bin_pha}-{i}"] = binned
+                binned = copy.deepcopy(af.tree[f"pha{i}-{i+1}"])
+            else:
+                binned += af.tree[f"pha{i}-{i+1}"]
+            counter += 1
 
-af = asdf.open("superdark_FUVA_167_300days.asdf")
+        sh = np.shape(binned)
+        xdim = sh[1]
+        ydim = sh[0]
+        b_x0 = 0
+        b_x1 = (xdim // bin_x) * bin_x
+        b_y0 = 0
+        b_y1 = (ydim // bin_y) * bin_y
 
+        pdffile = os.path.join(outdir, superdark.replace("asdf", "pdf"))
+        pdf = PdfPages(pdffile)
+        for k,binned in binned_ims.items():
+            binned = binned[b_y0:b_y1, b_x0:b_x1]
+            binned_sh = np.shape(binned)
+            binned_xdim = binned_sh[1]
+            binned_ydim = binned_sh[0]
+            tmp = binned.reshape(binned_ydim // bin_y, bin_y, binned_xdim // bin_x, bin_x)
+            binned = tmp.sum(axis=3).sum(axis=1)
+            binned_ims[k] = binned
+            spl = k.split("-")
+            print(f"For PHAs {spl[0]} through {spl[1]}:")
+            print(f"\tTotal number of events: {np.sum(binned)}")
+            print(f"\tMinimum number of events in a binned pixel: {np.min(binned)}")
+            print(f"\tMean number of events per binned pixel: {np.mean(binned):.1f}")
+            print(f"\t  Standard deviation: {np.std(binned):.1f}")
+            fig, ax = plt.subplots(figsize=(20,5))
+            im = ax.imshow(binned, origin="lower", cmap="inferno", 
+                      vmax=.8*np.max(binned))
+            fig.colorbar(im)
+            
+            ax.set_title(f"{af['segment']} HV={af['hv']} MJD {af['mjdstart']}-{af['mjdend']} PHA {spl[0]}-{spl[1]} (binned inner region)")
+            pdf.savefig(fig)
+        pdf.close()
+        print(f"Wrote {pdffile}")
 
-print (af.tree)
-
-#sys.exit(0)
-#print (af['pha4-5'])
-
-ii = []
-val = []
-
-#superdark = np.zeros ((71, 865, 3))
-superdark = np.zeros ((12, 289))
-
-
-for i in range (3, 28):
-
-	for j in range (0,142):
-
-		for k in range (0, 1730):
-
-			l = 'pha' + str(i) + '-' + str(i+1)
-
-			#ii = int(i / 2.0)
-			jj = int(j / 12.0)
-			kk = int(k / 6.0)
-
-			superdark [jj, kk] = superdark [jj, kk] + af[l][j,k]
-
-			#print (i, j, k, ii, jj, kk, af[l][j,k], superdark [jj, kk, ii] )
-
-
-			#if k > 10:
-			#	sys.exit(0)
-
-
-print ('Double check - total number of photons, superdark ', np.sum(superdark))
-
-np.save('sp_FUVA_167_300days', superdark)
-
-neg = plt.imshow(superdark, aspect='auto')
-plt.colorbar(neg)
-plt.show()
-
-
-print ('Statistics of the selection')
-print ('min ', np.min(superdark))
-print ('mean', np.mean(superdark))
-print ('std',  np.std(superdark))
-
-#	print (np.mean (af[l]))
-#	print (np.median(af[l]))
-
-#	ii.append (i)
-#	val.append (np.mean (af[l]))
-
-#plt.plot (ii, val)
-#plt.show()
-
-#plt.imshow(af['pha10-11'])
-#plt.show()
-
+    return binned_ims
 
 
