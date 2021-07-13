@@ -3,7 +3,7 @@ import glob
 
 setup(
     name = "cos_dark",
-    version = "0.0.1",
+    version = "1.0",
     description = "Perform an optimized COS/FUV dark correction",
     author = "Jo Taylor",
     author_email = "jotaylor@stsci.edu",
