@@ -1,3 +1,4 @@
+import datetime
 import argparse
 import asdf
 from astropy.io import fits
@@ -78,6 +79,8 @@ def make_clean_superdark(hv, segment, start_mjd, ndays=300, dayint=100,
     if pha_range[-1] != 30:
         pha_range = np.concatenate( (pha_range, np.array([30])) )
     
+    runstart = datetime.datetime.now()
+    print("Start time: {}".format(runstart))
     while notfilled is True:
         total_days += dayint
         end = start + dayint
@@ -129,6 +132,9 @@ def make_clean_superdark(hv, segment, start_mjd, ndays=300, dayint=100,
     outfile = f"superdark_{segment}_{hv}_{start_mjd}_{end_mjd}.asdf"
     af.write_to(outfile)
     print(f"Wrote {outfile}")
+    runend = datetime.datetime.now()
+    print("End time: {}".format(runend))
+    print("Total time: {}".format(runend-runstart))
 
 
 def bin_corrtag(corrtag_list, phastart, phaend, xtype='XCORR', ytype='YCORR', sdqflags=0):
