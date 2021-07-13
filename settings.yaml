@@ -1,3 +1,13 @@
 dark_dir: "/astro/sveash/darks/*/*corrtag*fits"
 solar_dir: "/astro/sveash/solar_data/*txt"
-dbname: "cos_dark.db"
+dbsettings: 
+    "cos_dark": 
+        dbtype: "sqlite"
+        dbname: "cos_dark"
+        loc: "/astro/sveash/cos_dark/cos_dark.db"
+    "dark_events":
+        dbtype: "mysql"
+        dbname: "hstcal"
+        host: "PLTANMYSQL"
+        port: "3313"
+        user: "jotaylor"

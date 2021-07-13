@@ -4,7 +4,7 @@ from astropy.io import fits
 import os
 import glob
 
-from query_darks import files_by_mjd
+from query_cos_dark import files_by_mjd
 
 def sum_data(mjdstart, mjdend):
     df = files_by_mjd(mjdstart, mjdend)
