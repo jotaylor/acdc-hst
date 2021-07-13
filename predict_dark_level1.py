@@ -10,14 +10,14 @@ mpl.rcParams.update({'legend.labelspacing':0.25, 'legend.fontsize': 12})
 mpl.rcParams.update({'errorbar.capsize': 4})
 import glob as glob
 
-def read_dark (filename):
+def read_dark(filename):
 	dark = np.load(filename)
 
 	return dark
 
-def linear_combination (darks, coeffs):
+def linear_combination(darks, coeffs):
 	if len(darks) != len(coeffs):
-		print ('Size of files is wrong')
+		print('Size of files is wrong')
 		sys.exit(0)
 
 	for i in range (0, len(coeffs)):
@@ -25,11 +25,11 @@ def linear_combination (darks, coeffs):
 			final = np.copy(darks[0]) * coeffs [0]
 		else:
 			final = final + darks[i] * coeffs [i]
-		#print ('i -- ', i)
+		#print('i -- ', i)
 		
 	return final
 
-def C_stat (combined_superdark, science_exposure, excluded_rows):
+def C_stat(combined_superdark, science_exposure, excluded_rows):
 	Csum = 0.0
 	for i in range (0, combined_superdark.shape[0]):
 		for j in range (0, combined_superdark.shape[1]):
@@ -37,22 +37,22 @@ def C_stat (combined_superdark, science_exposure, excluded_rows):
 				Csum = Csum + 2.0*(combined_superdark[i][j] - science_exposure[i][j] + science_exposure[i][j] * (log(science_exposure[i][j]) - log(combined_superdark[i][j])))	
 				#Csum = Csum + 2.0 * (combined_superdark[i][j] - int(science_exposure[i][j]) * log(combined_superdark[i][j]) + log(factorial(int(science_exposure[i][j]))) )	
 				#if science_exposure[i][j] > 10:
-				#	print ('Warning: ', i, j, science_exposure[i][j])
+				#	print('Warning: ', i, j, science_exposure[i][j])
 			elif (i not in excluded_rows):
 				Csum = Csum + abs(combined_superdark[i][j]) * 2
-				#print (i, j, Csum)
+				#print(i, j, Csum)
 
 	return Csum
 
-def fun_opt (coeff, darks, science_exposure, excluded_rows):
+def fun_opt(coeff, darks, science_exposure, excluded_rows):
 	combined_superdark = linear_combination (darks, coeff)
 	Cval = C_stat (combined_superdark, science_exposure, excluded_rows)
-	print (coeff, Cval)
+	print(coeff, Cval)
 	
 	return Cval
 
 
-def read_and_convert_science (filename):
+def read_and_convert_science(filename):
 	hdul = fits.open(filename)
 	data = hdul[1].data
 
@@ -110,15 +110,15 @@ for s in sciences:
     plt.show()
 
     val_C = C_stat (combined_superdark, science, excluded_rows)
-    print ('First ', val_C)	
+    print('First ', val_C)	
 
     #coeffs = [0.5 / tau_exposure, 0.5]
     #val_C = fun_opt (coeffs, darks, science_exposure, excluded_rows)
-    #print ('Second ', val_C)
+    #print('Second ', val_C)
 
     x0 = [0.007, 0.005]
     res = minimize(fun_opt, x0, method='Nelder-Mead', tol=1e-6, args=(darks, science, excluded_rows))
-    print (res.x)
+    print(res.x)
 
     combined_superdark = linear_combination (darks, res.x)
     bb = plt.imshow(combined_superdark, aspect='auto')
@@ -137,8 +137,8 @@ for s in sciences:
     np.save (f'{rootdir}{rootn}_noise', combined_superdark[NM])
     np.save (f'{rootdir}{rootn}_signal', science[NM])
 
-    print (np.mean(science[NM][180:]))
-    print (np.mean(combined_superdark[NM][180:]))
+    print(np.mean(science[NM][180:]))
+    print(np.mean(combined_superdark[NM][180:]))
 
     np.save (f'{rootdir}{rootn}_noise_complete', combined_superdark)
 

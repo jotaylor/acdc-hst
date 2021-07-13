@@ -12,7 +12,7 @@ mpl.rcParams.update({'legend.labelspacing':0.25, 'legend.fontsize': 12})
 mpl.rcParams.update({'errorbar.capsize': 4})
 
 
-def read_and_convert_science (filename, fact):
+def read_and_convert_science(filename, fact):
 	hdul = fits.open(filename)
 	data = hdul[1].data
 
@@ -54,7 +54,7 @@ for s in sciences:
         
         ## Read science exposure
         signal, n_rec = read_and_convert_science (s, fact)
-        print ('Size signal: ', len(signal[0]))
+        print('Size signal: ', len(signal[0]))
 
         hdul = fits.open(s) 
         data = hdul[1].data
@@ -67,7 +67,7 @@ for s in sciences:
         wwf = open ('tst.txt', 'w')
 
         logic = np.zeros((signal.shape[0], signal.shape[1]))
-        print (len(logic), np.shape(logic))
+        print(len(logic), np.shape(logic))
 
         #sys.exit(0)
 
@@ -78,7 +78,7 @@ for s in sciences:
                                 kk = int ((data['YCORR'][i] - ystart) / 12.0 / 2.0)
 
                                 #ss = int(data['PHA'][i] / 2.0)
-                                #print ('jj, kk ', jj, kk )
+                                #print('jj, kk ', jj, kk )
 
                                 delta_eps = noise[kk][int(jj / fact)] / float(fact)
                                 logic [kk][jj] = 1
@@ -92,14 +92,14 @@ for s in sciences:
         plt.imshow(logic)
         plt.show()
 
-        print (logic.shape[0])
+        print(logic.shape[0])
         #sys.exit(0)
 
         nmb_zero = logic.shape[0] * logic.shape[1] - np.sum(logic)
 
         if nmb_zero > 1:
                 new_records = data[len(data)-int(nmb_zero):].copy()
-        print ('Null records: ', nmb_zero, ' copied: ', len(new_records))
+        print('Null records: ', nmb_zero, ' copied: ', len(new_records))
 
         #sys.exit(0)
 
