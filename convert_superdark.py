@@ -8,15 +8,15 @@ try:
 except OSError:
     pass
 
-def bin_superdark(superdark, bin_x=12, bin_y=6, bin_pha=26, 
-                  pha_start=3, pha_end=28, outdir="."):
+def bin_superdark(superdark, bin_x=8, bin_y=2, bin_pha=26, 
+                  phastart=3, phaend=28, outdir="."):
 
     with asdf.open(superdark) as af:
         # First bin by PHA
-        binned = copy.deepcopy(af.tree[f"pha{pha_start}-{pha_start+1}"])
+        binned = copy.deepcopy(af.tree[f"pha{phastart}-{phastart+1}"])
         binned_ims = {}
         counter = 1
-        for i in range(pha_start+1, pha_end+2):
+        for i in range(phastart+1, phaend+2):
             if counter == bin_pha:
                 counter = 0
                 binned_ims[f"{i-bin_pha}-{i}"] = binned
@@ -59,6 +59,22 @@ def bin_superdark(superdark, bin_x=12, bin_y=6, bin_pha=26,
         pdf.close()
         print(f"Wrote {pdffile}")
 
-    return binned_ims
+        for k in af.keys():
+            if k.startswith("pha"):
+                continue
+            binned_ims[k] = af[k]
+        binned_ims["bin_x"] *= bin_x
+        binned_ims["bin_y"] *= bin_y
+        binned_ims["bin_pha"] *= bin_pha
+        binned_ims["xend"] = b_x1 * bin_x + af["xstart"]
+        binned_ims["yend"] = b_y1 * bin_y + af["ystart"]
+        binned_ims["phastart"] = phastart
+        binned_ims["phaend"] = phaend
 
+    af = asdf.AsdfFile(binned_ims)
+    outfile = f"binned_{superdark}"
+    af.write_to(outfile)
+    print(f"Wrote {outfile}")
+
+    return binned_ims
 
