@@ -1,55 +1,21 @@
+import argparse
+import os
+import glob
+import asdf
 from scipy.optimize import minimize
 from astropy.io import fits
 import numpy as np
-from math import *
-import matplotlib as mpl
 import matplotlib.pyplot as plt
-plt.rc('font', family='serif')
-mpl.rcParams.update({'font.size': 12})
-mpl.rcParams.update({'legend.labelspacing':0.25, 'legend.fontsize': 12})
-mpl.rcParams.update({'errorbar.capsize': 4})
-import glob as glob
 
-def read_dark(filename):
-	dark = np.load(filename)
+from make_clean_superdark import bin_corrtag
 
-	return dark
 
-def linear_combination(darks, coeffs):
-	if len(darks) != len(coeffs):
-		print('Size of files is wrong')
-		sys.exit(0)
-
-	for i in range (0, len(coeffs)):
-		if i == 0:
-			final = np.copy(darks[0]) * coeffs [0]
-		else:
-			final = final + darks[i] * coeffs [i]
-		#print('i -- ', i)
-		
-	return final
-
-def C_stat(combined_superdark, science_exposure, excluded_rows):
-	Csum = 0.0
-	for i in range (0, combined_superdark.shape[0]):
-		for j in range (0, combined_superdark.shape[1]):
-			if science_exposure[i][j] > 0 and (i not in excluded_rows) and combined_superdark[i][j] > 0:
-				Csum = Csum + 2.0*(combined_superdark[i][j] - science_exposure[i][j] + science_exposure[i][j] * (log(science_exposure[i][j]) - log(combined_superdark[i][j])))	
-				#Csum = Csum + 2.0 * (combined_superdark[i][j] - int(science_exposure[i][j]) * log(combined_superdark[i][j]) + log(factorial(int(science_exposure[i][j]))) )	
-				#if science_exposure[i][j] > 10:
-				#	print('Warning: ', i, j, science_exposure[i][j])
-			elif (i not in excluded_rows):
-				Csum = Csum + abs(combined_superdark[i][j]) * 2
-				#print(i, j, Csum)
-
-	return Csum
-
-def fun_opt(coeff, darks, science_exposure, excluded_rows):
-	combined_superdark = linear_combination (darks, coeff)
-	Cval = C_stat (combined_superdark, science_exposure, excluded_rows)
-	print(coeff, Cval)
+def fun_opt(coeffs, darks, binned_sci, excluded_rows):
+	combined_dark = linear_combination(darks, coeffs)
+	cval = c_stat(combined_dark, binned_sci, excluded_rows)
+	print(coeff, cval)
 	
-	return Cval
+	return cval
 
 
 def read_and_convert_science(filename):
@@ -73,72 +39,102 @@ def read_and_convert_science(filename):
 
 	return val1	
 
-exp_superdark = 259358.81600000005
+####
+def linear_combination(darks, coeffs):
+    combined = darks[0] * coeffs[0]
+    for i in range(1, len(darks)):
+        combined += darks[i] * coeffs[i]
+    return combined 
 
-sciences = glob.glob('/Users/sveash/Dropbox/COS_dark/low_snr/M83-1/*_corrtag_a.fits')
-rootdir = '/Users/sveash/Dropbox/COS_dark/low_snr/M83-1/dark_corr/v2/'
+def check_superdarks(dark1, dark2):
+    keys = ["bin_pha", "bin_x", "bin_y", "xstart", "xend", "ystart", "yend",
+            "phastart", "phaend"]
+    af1 = asdf.open(dark1)
+    af2 = asdf.open(dark2)
+    bad = False
+    binning = {}
+    for k in keys:
+        if af1[k] != af2[k]:
+            print(f"WARNING!!!! Key {k} does not match for both superdarks")
+            binning[k] = af1[k]
+            bad = True
+    assert bad == False, "Cannot continue until discrepancies are resolved"
 
-for s in sciences:
-    science = read_and_convert_science (s)  ## file with science exposure
-    rootn = s.split('-1/')[1].split('_corr')[0]
-    dark0 = read_dark ('sp_FUVA_167_300days.npy') ## quiescent state dark
-    dark1 = read_dark ('superdark_ba_max.npy')    ## any number of peculiar superdarks
-    plt.imshow(dark0, aspect='auto')
-    plt.show()
+    return binning
 
-    exp_obs = fits.getheader(s,1)['EXPTIME']
-    tau_exposure = exp_superdark / exp_obs
+def bin_science(corrtag, b):
+# TO DO, hardcoded one pha range
+    data = fits.getdata(corrtag)
+    phainds = np.where((data["pha"] >= b["phastart"]) & 
+                       (data["pha"] <= b["phaend"]))
+    phadata = data[phainds]
+    innerinds = np.where((phadata["xcorr"] > b["xstart"]) &
+                         (phadata["xcorr"] < b["xend"]) & 
+                         (phadata["ycorr"] > b["ystart"]) &
+                         (phadata["ycorr"] < b["yend"]))
+    filtered = phadata[innerinds]
 
-    darks  = [dark0, dark1]
-    coeffs = [0.5 / tau_exposure, 0.5 / tau_exposure]
-    combined_superdark = linear_combination (darks, coeffs)
+    ydim = (b["yend"] - b["ystart"]) / b["bin_y"]
+    xdim = (b["xend"] - b["xstart"]) / b["bin_x"]
+    binned = np.zeros(ydim, xdim)
 
-    plt.title(f'{rootn}')
-    plt.imshow(science, aspect='auto')
-    plt.show()
+    for i in range(len(filtered["xcorr"])):
+        x = filtered["xcorr"][i] - b["xstart"] // b["bin_x"]
+        y = filtered["ycorr"][i] - b["ystart"] // b["bin_y"]
+        binned[y,x] += filtered["epsilon"][i]
 
-    bb = plt.imshow(combined_superdark, aspect='auto')
-    plt.colorbar(bb)
-    plt.show()
+    return binned
+    
+def c_stat(combined_dark, binned_sci, excluded_rows=[999999]):
+    csum = 0.
+    for y in range(combined_dark.shape[0]):
+        for x in range(combined_dark.shape[1]):
+            if binned_sci[y,x] > 0 and y not in excluded_rows and combined_dark[y,x] > 0:
+                csum += 2. * (combined_dark[y,x] - binned_sci[y,x] + binned_sci[y,x] * np.log(binned_sci[y,x]) - np.log(binned_sci[j,x]))
+            elif y not in excluded_rows:
+                csum += np.abs(combined_dark[y,x]) * 2.
 
-    excluded_rows = [2,3,4,7,8] #May need to adjust these depending on LP
+    return csum
 
-    for i in range (0, science.shape[0]):
-            if i not in excluded_rows:
-                    plt.plot (science[i], label=i)
-    plt.legend()
-    plt.show()
 
-    val_C = C_stat (combined_superdark, science, excluded_rows)
-    print('First ', val_C)	
+def main(corrtags, lo_darkname, hi_darkname):
+    binning = check_superdarks(lo_dark, hi_dark)
+    lo_af = asdf.open(lo_darkname)
+    hi_af = asdf.open(hi_darkname)
+# TO DO, fix hardcoded key
+    lo_dark = lo_af["3-29"]
+    hi_dark = hi_af["3-29"]
+    for item in corrtags:
+        binned_sci = bin_science(item, binning)
+        sci_exp = fits.getval(item, "exptime")
+# TO DO, check with Andrei about this number
+        lo_coeff = 0.5 / lo_af["total_exptime"] / sci_exp
+        hi_coeff = 0.5 / hi_af["total_exptime"] / sci_exp
+        combined_dark = linear_combination([lo_dark, hi_dark], [lo_coeff, hi_coeff])
+# TO DO, plots?
+# TO DO, what is excluded rows?
+        excluded_rows = [2,3,4,7,8]
+        val_c = c_stat(combined_dark, binned_sci, excluded_rows)
 
-    #coeffs = [0.5 / tau_exposure, 0.5]
-    #val_C = fun_opt (coeffs, darks, science_exposure, excluded_rows)
-    #print('Second ', val_C)
+# TO DO, always hardcode this?
+        x0 = [0.007, 0.005]
+        res = minimize(fun_opt, x0, method="Nelder-Mead", tol=1e-6, 
+                       args=([lo_dark, hi_dark], binned_sci, excluded_rows))
+        combined_dark1 = linear_combination([lo_dark, hi_dark], res.x)
 
-    x0 = [0.007, 0.005]
-    res = minimize(fun_opt, x0, method='Nelder-Mead', tol=1e-6, args=(darks, science, excluded_rows))
-    print(res.x)
+    lo_af.close()
+    hi_af.close()
 
-    combined_superdark = linear_combination (darks, res.x)
-    bb = plt.imshow(combined_superdark, aspect='auto')
-    plt.colorbar(bb)
-    plt.show()
+if __name__ == "__main__":
+    parser = argparse.ArgumentParser()
+    parser.add_argument("-d", "--datadir",
+                        help="Path to science corrtags")
+    parser.add_argument("--lo", dest="lo_darkname",
+                        help="Name of low activity superdark")
+    parser.add_argument("--hi", dest="hi_darkname",
+                        help="Name of high activity superdark")
+    args = parser.parse_args()
+    corrtags = glob.glob(os.path.join(args.datadir, "*corrtag*fits"))
 
-    NM = 9 ## row with science data
-    plt.plot (science[NM], label='Outside of science extraction')
-    plt.plot (combined_superdark[NM], label='Predicted dark level')
-    plt.xlabel('x')
-    plt.ylabel('Number of photons')
-    plt.legend()
-    plt.savefig(f'{rootdir}{rootn}_predicted_dark.pdf')
-
-    plt.show()
-    np.save (f'{rootdir}{rootn}_noise', combined_superdark[NM])
-    np.save (f'{rootdir}{rootn}_signal', science[NM])
-
-    print(np.mean(science[NM][180:]))
-    print(np.mean(combined_superdark[NM][180:]))
-
-    np.save (f'{rootdir}{rootn}_noise_complete', combined_superdark)
+    main(corrtags, args.lo_darkname, args.hi_darkname)
 
