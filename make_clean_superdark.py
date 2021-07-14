@@ -24,8 +24,8 @@ TESTING = False
 #                "right": (14990, 15182, 360, 785)}
 
 def make_clean_superdark(hv, segment, start_mjd, ndays=300, dayint=100, 
-                         gsagtab="41g2040ol_gsag.fits", pha_step=1, bin_x=8,
-                         bin_y=2):
+                         gsagtab="41g2040ol_gsag.fits", bin_pha=1, bin_x=1,
+                         bin_y=1):
     # Inner region only, this divides evenly by default bin sizes
     if segment == "FUVA":
         x0 = 1264
@@ -75,7 +75,7 @@ def make_clean_superdark(hv, segment, start_mjd, ndays=300, dayint=100,
     total_days = 0
     total_exptime = 0
     total_files = 0
-    pha_range = np.arange(1, 31, pha_step)
+    pha_range = np.arange(1, 31, bin_pha)
     if pha_range[-1] != 30:
         pha_range = np.concatenate( (pha_range, np.array([30])) )
     
@@ -119,8 +119,13 @@ def make_clean_superdark(hv, segment, start_mjd, ndays=300, dayint=100,
             notfilled = False
     pha_images["xstart"] = x0
     pha_images["ystart"] = y0
+    pha_images["phastart"] = pha_range[0]
     pha_images["xend"] = x1
     pha_images["yend"] = y1
+    pha_images["phaend"] = pha_range[-1]
+    pha_images["bin_x"] = bin_x
+    pha_images["bin_y"] = bin_y
+    pha_images["bin_pha"] = bin_pha
     pha_images["mjdstart"] = start_mjd
     end_mjd = start_mjd+total_days
     pha_images["mjdend"] = end_mjd
@@ -129,7 +134,8 @@ def make_clean_superdark(hv, segment, start_mjd, ndays=300, dayint=100,
     pha_images["total_exptime"] = total_exptime
     pha_images["total_files"] = total_files
     af = asdf.AsdfFile(pha_images)
-    outfile = f"superdark_{segment}_{hv}_{start_mjd}_{end_mjd}.asdf"
+    today = runstart.strftime("%d%b%y")
+    outfile = f"superdark_{today}_{segment}_{hv}_{start_mjd}_{end_mjd}.asdf"
     af.write_to(outfile)
     print(f"Wrote {outfile}")
     runend = datetime.datetime.now()
@@ -193,4 +199,4 @@ if __name__ == "__main__":
                         help="Size of PHA binning")
     args = parser.parse_args() 
     make_clean_superdark(args.hv, args.segment, args.mjdstart, args.ndays,
-                         pha_step=args.phastep) 
+                         bin_pha=args.phastep) 
