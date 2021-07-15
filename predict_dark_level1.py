@@ -13,54 +13,31 @@ from make_clean_superdark import bin_corrtag
 def fun_opt(coeffs, darks, binned_sci, excluded_rows):
 	combined_dark = linear_combination(darks, coeffs)
 	cval = c_stat(combined_dark, binned_sci, excluded_rows)
-	print(coeff, cval)
 	
 	return cval
 
 
-def read_and_convert_science(filename):
-	hdul = fits.open(filename)
-	data = hdul[1].data
-
-	xstart = 1264
-	xend   = 15112
-	ystart = 376
-	yend   = 660
-	val1 = np.zeros ((12, 289)) 
-
-	## Reading corrtag file and preparing binned image 
-	for i in range (0, len(data['XCORR'][:])):
-		if (data['XCORR'][i] > xstart) and (data['XCORR'][i] < xend-6):
-			if (data['YCORR'][i] > ystart) and (data['YCORR'][i] < yend) and (data['PHA'][i] < 28) and (data['PHA'][i] > 3):
-				jj = int ((data['XCORR'][i] - xstart) / 6.0 / 8.0)
-				kk = int ((data['YCORR'][i] - ystart) / 12.0 / 2.0)
-				if ((int(data['PHA'][i]) > 3) and (int(data['PHA'][i]) <28)): 
-					val1 [kk, jj] = val1[kk, jj] + data['EPSILON'][i]	
-
-	return val1	
-
-####
 def linear_combination(darks, coeffs):
     combined = darks[0] * coeffs[0]
     for i in range(1, len(darks)):
         combined += darks[i] * coeffs[i]
     return combined 
 
-def check_superdarks(dark1, dark2):
+
+def check_superdarks(af1, af2):
     keys = ["bin_pha", "bin_x", "bin_y", "xstart", "xend", "ystart", "yend",
             "phastart", "phaend"]
-    af1 = asdf.open(dark1)
-    af2 = asdf.open(dark2)
     bad = False
     binning = {}
     for k in keys:
         if af1[k] != af2[k]:
             print(f"WARNING!!!! Key {k} does not match for both superdarks")
-            binning[k] = af1[k]
             bad = True
+        binning[k] = af1[k]
     assert bad == False, "Cannot continue until discrepancies are resolved"
 
     return binning
+
 
 def bin_science(corrtag, b):
 # TO DO, hardcoded one pha range
@@ -74,23 +51,23 @@ def bin_science(corrtag, b):
                          (phadata["ycorr"] < b["yend"]))
     filtered = phadata[innerinds]
 
-    ydim = (b["yend"] - b["ystart"]) / b["bin_y"]
-    xdim = (b["xend"] - b["xstart"]) / b["bin_x"]
-    binned = np.zeros(ydim, xdim)
-
-    for i in range(len(filtered["xcorr"])):
-        x = filtered["xcorr"][i] - b["xstart"] // b["bin_x"]
-        y = filtered["ycorr"][i] - b["ystart"] // b["bin_y"]
-        binned[y,x] += filtered["epsilon"][i]
-
-    return binned
+    ydim = int((b["yend"] - b["ystart"]) / b["bin_y"])
+    xdim = int((b["xend"] - b["xstart"]) / b["bin_x"])
+    binned = np.zeros((ydim, xdim))
     
-def c_stat(combined_dark, binned_sci, excluded_rows=[999999]):
+    for i in range(len(filtered["xcorr"])):
+        x = int((filtered["xcorr"][i] - b["xstart"]) // b["bin_x"])
+        y = int((filtered["ycorr"][i] - b["ystart"]) // b["bin_y"])
+        binned[y,x] += filtered["epsilon"][i]
+    return binned
+
+
+def c_stat(combined_dark, binned_sci, excluded_rows=[2,3,4,7,8]):
     csum = 0.
     for y in range(combined_dark.shape[0]):
         for x in range(combined_dark.shape[1]):
             if binned_sci[y,x] > 0 and y not in excluded_rows and combined_dark[y,x] > 0:
-                csum += 2. * (combined_dark[y,x] - binned_sci[y,x] + binned_sci[y,x] * np.log(binned_sci[y,x]) - np.log(binned_sci[j,x]))
+                csum = csum + 2. * (combined_dark[y,x] - binned_sci[y,x] + binned_sci[y,x] * (np.log(binned_sci[y,x]) - np.log(combined_dark[y,x])))
             elif y not in excluded_rows:
                 csum += np.abs(combined_dark[y,x]) * 2.
 
@@ -98,22 +75,34 @@ def c_stat(combined_dark, binned_sci, excluded_rows=[999999]):
 
 
 def main(corrtags, lo_darkname, hi_darkname):
-    binning = check_superdarks(lo_dark, hi_dark)
     lo_af = asdf.open(lo_darkname)
     hi_af = asdf.open(hi_darkname)
+    binning = check_superdarks(lo_af, hi_af)
 # TO DO, fix hardcoded key
     lo_dark = lo_af["3-29"]
     hi_dark = hi_af["3-29"]
+    plt.imshow(lo_dark, aspect="auto", origin="lower")
+    plt.savefig("lo_dark.png")
+    plt.clf()
     for item in corrtags:
         binned_sci = bin_science(item, binning)
-        sci_exp = fits.getval(item, "exptime")
+        plt.imshow(binned_sci, aspect="auto", origin="lower")
+        plt.savefig("binned_sci.png")
+        plt.clf()
+        sci_exp = fits.getval(item, "exptime", 1)
 # TO DO, check with Andrei about this number
-        lo_coeff = 0.5 / lo_af["total_exptime"] / sci_exp
-        hi_coeff = 0.5 / hi_af["total_exptime"] / sci_exp
+        lo_coeff = 0.5 / (lo_af["total_exptime"] / sci_exp)
+        hi_coeff = 0.5 / (hi_af["total_exptime"] / sci_exp)
         combined_dark = linear_combination([lo_dark, hi_dark], [lo_coeff, hi_coeff])
 # TO DO, plots?
 # TO DO, what is excluded rows?
         excluded_rows = [2,3,4,7,8]
+        for i in range(binned_sci.shape[0]):
+            if i not in excluded_rows:
+                plt.plot(binned_sci[i], label=i)
+        plt.legend()
+        plt.savefig("rows.png")
+        plt.clf()
         val_c = c_stat(combined_dark, binned_sci, excluded_rows)
 
 # TO DO, always hardcode this?
@@ -121,9 +110,22 @@ def main(corrtags, lo_darkname, hi_darkname):
         res = minimize(fun_opt, x0, method="Nelder-Mead", tol=1e-6, 
                        args=([lo_dark, hi_dark], binned_sci, excluded_rows))
         combined_dark1 = linear_combination([lo_dark, hi_dark], res.x)
+        plt.imshow(combined_dark1, aspect="auto", origin="lower")
+        plt.savefig("combined_dark.png")
+        plt.clf()
+
+        sci_row = 9
+        plt.plot(binned_sci[9], label="Outside of sci extr")
+        plt.plot(combined_dark1[9], label="Predicted dark level")
+        plt.xlabel("X")
+        plt.ylabel("Number of photons")
+        plt.legend()
+        plt.savefig("predicted_dark.png")
+        plt.clf()
 
     lo_af.close()
     hi_af.close()
+
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
