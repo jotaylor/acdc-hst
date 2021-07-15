@@ -1,3 +1,4 @@
+import copy
 import argparse
 import os
 import glob
@@ -25,21 +26,26 @@ def linear_combination(darks, coeffs):
 
 
 def check_superdarks(af1, af2):
+    bad = False
     keys = ["bin_pha", "bin_x", "bin_y", "xstart", "xend", "ystart", "yend",
             "phastart", "phaend"]
-    bad = False
-    binning = {}
     for k in keys:
         if af1[k] != af2[k]:
             print(f"WARNING!!!! Key {k} does not match for both superdarks")
             bad = True
-        binning[k] = af1[k]
     assert bad == False, "Cannot continue until discrepancies are resolved"
+
+
+def get_binning_pars(af):
+    keys = ["bin_pha", "bin_x", "bin_y", "xstart", "xend", "ystart", "yend",
+            "phastart", "phaend"]
+    binning = {}
+    for k in keys:
+        binning[k] = af[k]
 
     return binning
 
-
-def bin_science(corrtag, b):
+def bin_science(corrtag, b, fact=1):
 # TO DO, hardcoded one pha range
     data = fits.getdata(corrtag)
     phainds = np.where((data["pha"] >= b["phastart"]) & 
@@ -53,13 +59,16 @@ def bin_science(corrtag, b):
 
     ydim = int((b["yend"] - b["ystart"]) / b["bin_y"])
     xdim = int((b["xend"] - b["xstart"]) / b["bin_x"])
-    binned = np.zeros((ydim, xdim))
+    binned = np.zeros((ydim, xdim*fact))
+    nevents = np.zeros((ydim, xdim*fact))
     
     for i in range(len(filtered["xcorr"])):
-        x = int((filtered["xcorr"][i] - b["xstart"]) // b["bin_x"])
+        x = int((filtered["xcorr"][i] - b["xstart"]) // b["bin_x"] * fact)
         y = int((filtered["ycorr"][i] - b["ystart"]) // b["bin_y"])
         binned[y,x] += filtered["epsilon"][i]
-    return binned
+        nevents[y,x] += 1
+
+    return binned, nevents
 
 
 def c_stat(combined_dark, binned_sci, excluded_rows=[2,3,4,7,8]):
@@ -74,10 +83,11 @@ def c_stat(combined_dark, binned_sci, excluded_rows=[2,3,4,7,8]):
     return csum
 
 
-def main(corrtags, lo_darkname, hi_darkname):
+def main(corrtags, lo_darkname, hi_darkname, outdir="."):
     lo_af = asdf.open(lo_darkname)
     hi_af = asdf.open(hi_darkname)
-    binning = check_superdarks(lo_af, hi_af)
+    check_superdarks(lo_af, hi_af)
+    binning = get_binning_pars(lo_af)
 # TO DO, fix hardcoded key
     lo_dark = lo_af["3-29"]
     hi_dark = hi_af["3-29"]
@@ -85,7 +95,9 @@ def main(corrtags, lo_darkname, hi_darkname):
     plt.savefig("lo_dark.png")
     plt.clf()
     for item in corrtags:
-        binned_sci = bin_science(item, binning)
+        rootname0 = fits.getval(item, "rootname")
+        rootname = rootname0.lower()
+        binned_sci, nevents = bin_science(item, binning)
         plt.imshow(binned_sci, aspect="auto", origin="lower")
         plt.savefig("binned_sci.png")
         plt.clf()
@@ -115,13 +127,35 @@ def main(corrtags, lo_darkname, hi_darkname):
         plt.clf()
 
         sci_row = 9
-        plt.plot(binned_sci[9], label="Outside of sci extr")
-        plt.plot(combined_dark1[9], label="Predicted dark level")
+        plt.plot(binned_sci[sci_row], label="Outside of sci extr")
+        plt.plot(combined_dark1[sci_row], label="Predicted dark level")
         plt.xlabel("X")
         plt.ylabel("Number of photons")
         plt.legend()
         plt.savefig("predicted_dark.png")
         plt.clf()
+
+        noise = copy.deepcopy(lo_af.tree)
+        noise["3-29"] = combined_dark1[sci_row]
+        outfile = os.path.join(outdir, f"{rootname}_noise.asdf")
+        noise_af = asdf.AsdfFile(noise)
+        noise_af.write_to(outfile)
+        print(f"Wrote {outfile}")
+
+        signal = copy.deepcopy(lo_af.tree)
+        signal["3-29"] = binned_sci[sci_row]
+        outfile = os.path.join(outdir, f"{rootname}_signal.asdf")
+        signal_af = asdf.AsdfFile(signal)
+        signal_af.write_to(outfile)
+        print(f"Wrote {outfile}")
+
+        noise_comp = copy.deepcopy(lo_af.tree)
+        noise_comp["3-29"] = combined_dark1
+        outfile = os.path.join(outdir, f"{rootname}_noise_complete.asdf")
+        noise_comp_af = asdf.AsdfFile(noise_comp)
+        noise_comp_af.write_to(outfile)
+        print(f"Wrote {outfile}")
+
 
     lo_af.close()
     hi_af.close()
@@ -135,8 +169,10 @@ if __name__ == "__main__":
                         help="Name of low activity superdark")
     parser.add_argument("--hi", dest="hi_darkname",
                         help="Name of high activity superdark")
+    parser.add_argument("-o", "--outdir", default=".",
+                        help="Name of output directory")
     args = parser.parse_args()
     corrtags = glob.glob(os.path.join(args.datadir, "*corrtag*fits"))
 
-    main(corrtags, args.lo_darkname, args.hi_darkname)
+    main(corrtags, args.lo_darkname, args.hi_darkname, args.outdir)
 
