@@ -37,6 +37,10 @@ def make_clean_superdark(hv, segment, start_mjd, ndays=300, dayint=100,
         x1 = 14984 
         y0 = 405
         y1 = 739 
+    b_y0 = y0//bin_y
+    b_y1 = y1//bin_y
+    b_x0 = x0//bin_x
+    b_x1 = x1//bin_x
 #    x = (x1-x0)/bin_x
 #    y = (y1-y0)/bin_y
 #    superdark = np.zeros(x*y).reshape((y,x))
@@ -61,8 +65,6 @@ def make_clean_superdark(hv, segment, start_mjd, ndays=300, dayint=100,
     df0 = df0.rename(columns={"LX": "X0", "LY": "Y0"})
     df0["X1"] = df0["X0"] + df0["DX"]
     df0["Y1"] = df0["Y0"] + df0["DY"]
-    df0["Y0_INVERT"] = 1024-df0["Y1"]
-    df0["Y1_INVERT"] = 1024-df0["Y0"]
     df0["X0"] = df0["X0"]//bin_x
     df0["X1"] = df0["X1"]//bin_x
     df0["Y0"] = df0["Y0"]//bin_y
@@ -96,13 +98,13 @@ def make_clean_superdark(hv, segment, start_mjd, ndays=300, dayint=100,
 #            inner_image = sum_image[(1024-y1):(1024-y0), x0:x1]
             tmp = sum_image.reshape(1024 // bin_y, bin_y, 16384 // bin_x, bin_x)
             binned = tmp.sum(axis=3).sum(axis=1)
-            b_y0 = (1024-y1)//bin_y
-            b_y1 = (1024-y0)//bin_y
-            b_x0 = (16384-x1)//bin_x
-            b_x1 = (16384-x0)//bin_x
+            #b_y0 = (1024-y1)//bin_y
+            #b_y1 = (1024-y0)//bin_y
+            #b_x0 = (16384-x1)//bin_x
+            #b_x1 = (16384-x0)//bin_x
             binned_inner = binned[b_y0:b_y1, b_x0:b_x1]
             for j in range(len(df)): 
-                binned_inner[df.iloc[j]["Y0_INVERT"]:df.iloc[j]["Y1_INVERT"], df.iloc[j]["X0"]:df.iloc[j]["X1"]] = 999
+                binned_inner[df.iloc[j]["Y0"]:df.iloc[j]["Y1"], df.iloc[j]["X0"]:df.iloc[j]["X1"]] = 999
             zeros = np.where(binned_inner == 0)
             if len(zeros[0]) != 0:
                 notfilled = True
@@ -117,11 +119,11 @@ def make_clean_superdark(hv, segment, start_mjd, ndays=300, dayint=100,
         if total_days >= ndays:
             print("Not every pixel had events at every PHA")
             notfilled = False
-    pha_images["xstart"] = x0
-    pha_images["ystart"] = y0
+    pha_images["xstart"] = b_x0 * bin_x
+    pha_images["ystart"] = b_y0 * bin_y
     pha_images["phastart"] = pha_range[0]
-    pha_images["xend"] = x1
-    pha_images["yend"] = y1
+    pha_images["xend"] = b_x1 * bin_x
+    pha_images["yend"] = b_y1 * bin_y
     pha_images["phaend"] = pha_range[-1]
     pha_images["bin_x"] = bin_x
     pha_images["bin_y"] = bin_y
