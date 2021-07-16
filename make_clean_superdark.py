@@ -13,20 +13,24 @@ TESTING = False
 
 # Re-binning method from 
 # https://stackoverflow.com/questions/14916545/numpy-rebinning-a-2d-array
-# This is here for reference, these are the original definitions from calculate_dark.py
+# This is here for reference, original definitions from calculate_dark.py
 #if segment == "FUVA":
-#    location = {"inner": (1260, 15119, 375, 660), "bottom": (1060, 15250, 296, 375),
-#                "top": (1060, 15250, 660, 734), "left": (1060, 1260, 296, 734),
+#    location = {"inner": (1260, 15119, 375, 660), 
+#                "bottom": (1060, 15250, 296, 375),
+#                "top": (1060, 15250, 660, 734), 
+#                "left": (1060, 1260, 296, 734),
 #                "right": (15119, 15250, 296, 734)}
 #elif segment == "FUVB":
-#    location = {"inner": (1000, 14990, 405, 740), "bottom": (809, 15182, 360, 405),
-#                "top": (809, 15182, 740, 785), "left": (809, 1000, 360, 785),
+#    location = {"inner": (1000, 14990, 405, 740), 
+#                "bottom": (809, 15182, 360, 405),
+#                "top": (809, 15182, 740, 785), 
+#                "left": (809, 1000, 360, 785),
 #                "right": (14990, 15182, 360, 785)}
 
 def make_clean_superdark(hv, segment, start_mjd, ndays=300, dayint=100, 
                          gsagtab="41g2040ol_gsag.fits", bin_pha=1, bin_x=1,
                          bin_y=1):
-    # Inner region only, this divides evenly by default bin sizes
+    # Inner region only, this divides evenly by resel bin sizes
     if segment == "FUVA":
         x0 = 1264
         x1 = 15112 
@@ -41,9 +45,6 @@ def make_clean_superdark(hv, segment, start_mjd, ndays=300, dayint=100,
     b_y1 = y1//bin_y
     b_x0 = x0//bin_x
     b_x1 = x1//bin_x
-#    x = (x1-x0)/bin_x
-#    y = (y1-y0)/bin_y
-#    superdark = np.zeros(x*y).reshape((y,x))
 
     superdark = np.zeros(1024*16384).reshape((1024, 16384))
     extfound = False
@@ -95,13 +96,8 @@ def make_clean_superdark(hv, segment, start_mjd, ndays=300, dayint=100,
         total_files += len(darks)
         for i in range(len(pha_range)-1):
             sum_image = bin_corrtag(darks, phastart=pha_range[i], phaend=pha_range[i+1])
-#            inner_image = sum_image[(1024-y1):(1024-y0), x0:x1]
             tmp = sum_image.reshape(1024 // bin_y, bin_y, 16384 // bin_x, bin_x)
             binned = tmp.sum(axis=3).sum(axis=1)
-            #b_y0 = (1024-y1)//bin_y
-            #b_y1 = (1024-y0)//bin_y
-            #b_x0 = (16384-x1)//bin_x
-            #b_x1 = (16384-x0)//bin_x
             binned_inner = binned[b_y0:b_y1, b_x0:b_x1]
             for j in range(len(df)): 
                 binned_inner[df.iloc[j]["Y0"]:df.iloc[j]["Y1"], df.iloc[j]["X0"]:df.iloc[j]["X1"]] = 999
@@ -146,7 +142,7 @@ def make_clean_superdark(hv, segment, start_mjd, ndays=300, dayint=100,
 
 
 def bin_corrtag(corrtag_list, phastart, phaend, xtype='XCORR', ytype='YCORR', sdqflags=0):
-    """Bin corrtag event lists into a 2D image.
+    """Bin one or more corrtag event lists into a 2D image.
 
     Modifed from /user/jotaylor/git/jotools/utils.py
 
