@@ -46,6 +46,8 @@ class Superdark():
         if bin_pha == "all":
             bin_pha = phaend - phastart - 1
         self.bin_pha = bin_pha
+        self.phastart = phastart
+        self.phaend = phaend
         self.gsagtab = gsagtab
         self.superdark_unbinned = np.zeros(1024*16384).reshape((1024, 16384))
         self.outfile = outfile
@@ -56,17 +58,15 @@ class Superdark():
     def create_superdark(self):
         notfilled = True
         pha_images = {}
+        runstart = datetime.datetime.now()
+        print("\nStart time: {}".format(runstart))
         for k in range(len(self.mjdstarts)):
             start = self.mjdstarts[k]
             total_days = 0
             total_exptime = 0
             total_files = 0
-            pha_range = np.arange(1, 31, self.bin_pha)
-            if pha_range[-1] != 30:
-                pha_range = np.concatenate( (pha_range, np.array([30])) )
+            pha_range = np.arange(self.phastart, self.phaend, self.bin_pha)
 
-            runstart = datetime.datetime.now()
-            print("Start time: {}".format(runstart))
             while notfilled is True:
                 total_days += self.dayint
                 if total_days > self.ndays[k]:
@@ -129,7 +129,7 @@ class Superdark():
         pha_images["total_exptime"] = total_exptime
         pha_images["total_files"] = total_files
         af = asdf.AsdfFile(pha_images)
-        today = runstart.strftime("%d%b%y-%H%M")
+        today = runstart.strftime("%d%b%y-%H:%M:%S")
         if self.outfile is None:
             self.outfile = f"superdark_{self.segment}_{self.hv}_{today}.asdf"
         af.write_to(self.outfile)
