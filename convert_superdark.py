@@ -1,3 +1,5 @@
+import os
+import argparse
 from matplotlib.backends.backend_pdf import PdfPages
 import copy
 import asdf
@@ -33,6 +35,9 @@ def bin_superdark(superdark, bin_x=8, bin_y=2, bin_pha=26,
         b_y0 = 0
         b_y1 = (ydim // bin_y) * bin_y
 
+        plt.imshow(binned_ims["3-29"], aspect="auto", origin="lower")
+        plt.show()
+
         pdffile = os.path.join(outdir, superdark.replace("asdf", "pdf"))
         pdf = PdfPages(pdffile)
         for k,binned in binned_ims.items():
@@ -46,15 +51,23 @@ def bin_superdark(superdark, bin_x=8, bin_y=2, bin_pha=26,
             spl = k.split("-")
             print(f"For PHAs {spl[0]} through {spl[1]}:")
             print(f"\tTotal number of events: {np.sum(binned)}")
+            print(f"\tTotal exptime of superdark: {af['total_exptime']}")
             print(f"\tMinimum number of events in a binned pixel: {np.min(binned)}")
             print(f"\tMean number of events per binned pixel: {np.mean(binned):.1f}")
             print(f"\t  Standard deviation: {np.std(binned):.1f}")
+            print(f"\tMedian number of events per binned pixel: {np.median(binned):.1f}")
             fig, ax = plt.subplots(figsize=(20,5))
-            im = ax.imshow(binned, origin="lower", cmap="inferno", 
-                      vmax=.8*np.max(binned))
-            fig.colorbar(im)
+            #vmax = np.mean(binned) * 2
+            vmin = np.mean(binned) - 3*np.std(binned)
+            if vmin < 0:
+                vmin = 0
+            vmax = np.mean(binned) + 3*np.std(binned)
+            im = ax.imshow(binned, aspect="auto", origin="lower", 
+                           cmap="inferno", vmin=vmin, vmax=vmax)
+            fig.colorbar(im, label="Counts")
             
-            ax.set_title(f"{af['segment']} HV={af['hv']} MJD {af['mjdstart']}-{af['mjdend']} PHA {spl[0]}-{spl[1]} (binned inner region)")
+            ax.set_title(f"{af['segment']}; HV={af['hv']}; MJD {af['mjdstart']}-{af['mjdend']}; PHA {spl[0]}-{spl[1]}; X bin={bin_x} Y bin={bin_y}")
+            plt.tight_layout()
             pdf.savefig(fig)
         pdf.close()
         print(f"Wrote {pdffile}")
@@ -78,3 +91,22 @@ def bin_superdark(superdark, bin_x=8, bin_y=2, bin_pha=26,
 
     return binned_ims
 
+if __name__ == "__main__":
+    parser = argparse.ArgumentParser()
+    parser.add_argument(dest="superdark",
+                        help="Name of superdark to bin")
+    parser.add_argument("-x", "--binx", default=8, type=int,
+                        help="Amount to bin in X")
+    parser.add_argument("-y", "--biny", default=2, type=int, 
+                        help="Amount to bin in X")
+    parser.add_argument("-p", "--binpha", default=26, type=int,
+                        help="Amount to bin in X")
+    parser.add_argument("--phastart", default=3, type=int, 
+                        help="Lower limit of PHA range")
+    parser.add_argument("--phaend", default=28, type=int, 
+                        help="Upper limit of PHA range")
+    parser.add_argument("-o", "--outdir", default=".",
+                        help="Output directory")
+    args = parser.parse_args()
+    bin_superdark(args.superdark, args.binx, args.biny, args.binpha,
+                  args.phastart, args.phaend, args.outdir)
