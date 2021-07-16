@@ -91,6 +91,8 @@ def main(corrtags, lo_darkname, hi_darkname, outdir="."):
 # TO DO, fix hardcoded key
     lo_dark = lo_af["3-29"]
     hi_dark = hi_af["3-29"]
+#    lo_dark = lo_dark[:, :288]
+#    hi_dark = hi_dark[:, :288]
     plt.imshow(lo_dark, aspect="auto", origin="lower")
     plt.savefig("lo_dark.png")
     plt.clf()
@@ -102,12 +104,12 @@ def main(corrtags, lo_darkname, hi_darkname, outdir="."):
         plt.savefig("binned_sci.png")
         plt.clf()
         sci_exp = fits.getval(item, "exptime", 1)
-# TO DO, check with Andrei about this number
+        # Initial guess is 0.5 contribution for each superdark
         lo_coeff = 0.5 / (lo_af["total_exptime"] / sci_exp)
         hi_coeff = 0.5 / (hi_af["total_exptime"] / sci_exp)
         combined_dark = linear_combination([lo_dark, hi_dark], [lo_coeff, hi_coeff])
-# TO DO, plots?
-# TO DO, what is excluded rows?
+# this is science extraction regions (use xtractab) for sci exp. LP
+# also exclude wavecals
         excluded_rows = [2,3,4,7,8]
         for i in range(binned_sci.shape[0]):
             if i not in excluded_rows:
@@ -118,7 +120,9 @@ def main(corrtags, lo_darkname, hi_darkname, outdir="."):
         val_c = c_stat(combined_dark, binned_sci, excluded_rows)
 
 # TO DO, always hardcode this?
+# Compare hardcoded vs variables
         x0 = [0.007, 0.005]
+#        x0 = [lo_coeff, hi_coeff]
         res = minimize(fun_opt, x0, method="Nelder-Mead", tol=1e-6, 
                        args=([lo_dark, hi_dark], binned_sci, excluded_rows))
         combined_dark1 = linear_combination([lo_dark, hi_dark], res.x)
@@ -135,6 +139,7 @@ def main(corrtags, lo_darkname, hi_darkname, outdir="."):
         plt.savefig("predicted_dark.png")
         plt.clf()
 
+#       These two files below are used for sanity checks
         noise = copy.deepcopy(lo_af.tree)
         noise["3-29"] = combined_dark1[sci_row]
         outfile = os.path.join(outdir, f"{rootname}_noise.asdf")

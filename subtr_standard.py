@@ -10,7 +10,7 @@ import os
 from predict_dark_level1 import bin_science, get_binning_pars
 
 def main(corrtags, pred_noise_file, fact=2, outdir="."):
-# TO DO what is fact?
+# fact changes resolution, 1=highest resolution, 8=lowest resolution. to keep at same input res., use 1
     pred_noise_af = asdf.open(pred_noise_file)
     pred_noise = pred_noise_af["3-29"]
     b = get_binning_pars(pred_noise_af)
@@ -93,9 +93,7 @@ def main(corrtags, pred_noise_file, fact=2, outdir="."):
 
         
         inds = np.where(logic < 1)
-        import pdb; pdb.set_trace()
         if len(logic[inds]) != 0:
-# TO DO what about DQ?
             new_events = copy.deepcopy(data[len(data) - len(inds[0]):])
             for i in range(len(inds[0])):
                 y = b["bin_y"] * inds[0][i] + b["ystart"] 
@@ -107,6 +105,7 @@ def main(corrtags, pred_noise_file, fact=2, outdir="."):
                 new_events["xfull"][i] = x 
                 new_events["yfull"][i] = y
                 new_events["pha"][i] = 10
+                new_events["dq"][i] = 0
                 new_events["epsilon"][i] = -pred_noise[inds[0][i], int(inds[1][i]/fact)] / fact
                  
             data = np.concatenate([data, new_events])
