@@ -35,8 +35,8 @@ def bin_superdark(superdark, bin_x=8, bin_y=2, bin_pha=26,
         b_y0 = 0
         b_y1 = (ydim // bin_y) * bin_y
 
-        plt.imshow(binned_ims["3-29"], aspect="auto", origin="lower")
-        plt.show()
+#        plt.imshow(binned_ims["3-29"], aspect="auto", origin="lower")
+#        plt.show()
 
         pdffile = os.path.join(outdir, superdark.replace("asdf", "pdf"))
         pdf = PdfPages(pdffile)
@@ -48,23 +48,27 @@ def bin_superdark(superdark, bin_x=8, bin_y=2, bin_pha=26,
             tmp = binned.reshape(binned_ydim // bin_y, bin_y, binned_xdim // bin_x, bin_x)
             binned = tmp.sum(axis=3).sum(axis=1)
             binned_ims[k] = binned
+            rate = binned/af["total_exptime"]
             spl = k.split("-")
             print(f"For PHAs {spl[0]} through {spl[1]}:")
-            print(f"\tTotal number of events: {np.sum(binned)}")
-            print(f"\tTotal exptime of superdark: {af['total_exptime']}")
+            print(f"\tTotal number of events: {np.sum(binned):,}")
+            print(f"\tTotal exptime of superdark: {af['total_exptime']:,}")
             print(f"\tMinimum number of events in a binned pixel: {np.min(binned)}")
             print(f"\tMean number of events per binned pixel: {np.mean(binned):.1f}")
             print(f"\t  Standard deviation: {np.std(binned):.1f}")
             print(f"\tMedian number of events per binned pixel: {np.median(binned):.1f}")
+            print(f"\tMean countrate per binned pixel: {np.mean(rate):.2e}")
+            print(f"\t  Standard deviation: {np.std(rate):.2e}")
+            print(f"\tMedian countrate per binned pixel: {np.median(rate):.2e}")
             fig, ax = plt.subplots(figsize=(20,5))
             #vmax = np.mean(binned) * 2
-            vmin = np.mean(binned) - 3*np.std(binned)
+            vmin = np.mean(rate) - 3*np.std(rate)
             if vmin < 0:
                 vmin = 0
-            vmax = np.mean(binned) + 3*np.std(binned)
-            im = ax.imshow(binned, aspect="auto", origin="lower", 
-                           cmap="inferno", vmin=vmin, vmax=vmax)
-            fig.colorbar(im, label="Counts")
+            vmax = np.mean(rate) + 3*np.std(rate)
+            im = ax.imshow(rate, aspect="auto", 
+                           origin="lower", cmap="inferno", vmin=vmin, vmax=vmax)
+            fig.colorbar(im, label="Counts/s", format="%.2e")
             
             ax.set_title(f"{af['segment']}; HV={af['hv']}; MJD {af['mjdstart']}-{af['mjdend']}; PHA {spl[0]}-{spl[1]}; X bin={bin_x} Y bin={bin_y}")
             plt.tight_layout()
