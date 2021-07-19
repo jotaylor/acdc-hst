@@ -26,6 +26,10 @@ class Superdark():
                 xstart, xend, ystart, yend = 1000, 14990, 405, 740
         else:
             raise Exception(f"Invalid segment specified: {segment}")
+        while (xstart // bin_x) * bin_x < xstart:
+            xstart += 1
+        while (ystart // bin_y) * bin_y < ystart:
+            ystart += 1
         self.xstart, self.ystart = xstart, ystart
         self.xend = (xend // bin_x) * bin_x
         self.yend = (yend // bin_y) * bin_y
@@ -87,7 +91,7 @@ class Superdark():
                 total_exptime += sum([fits.getval(x, "exptime", 1) for x in darks])
                 total_files += len(darks)
                 for i in range(len(pha_range)-1):
-                    print("   Binning corrtags...")
+                    print(f"   Binning corrtags PHA {pha_range[i]} through {pha_range[i+1]}...")
                     sum_image = self.bin_corrtags(darks, phastart=pha_range[i], phaend=pha_range[i+1])
                     print("   Binning done")
                     for j in range(len(gsag_df)):
