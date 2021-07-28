@@ -16,27 +16,8 @@ from query_cos_dark import files_by_mjd
 class Superdark():
     def __init__(self, hv, segment, mjdstarts, mjdends, dayint=100, bin_x=1,
                  bin_y=1, bin_pha=1, phastart=1, phaend=31, 
-                 gsagtab="41g2040ol_gsag.fits", region="inner", outfile=None):
-
-        if segment == "FUVA":
-            if region == "inner":
-                xstart, xend, ystart, yend = 1260, 15119, 375, 660
-        elif segment == "FUVB":
-            if region == "inner":
-                xstart, xend, ystart, yend = 1000, 14990, 405, 740
-        else:
-            raise Exception(f"Invalid segment specified: {segment}")
-        while (xstart // bin_x) * bin_x < xstart:
-            xstart += 1
-        while (ystart // bin_y) * bin_y < ystart:
-            ystart += 1
-        self.xstart, self.ystart = xstart, ystart
-        self.xend = (xend // bin_x) * bin_x
-        self.yend = (yend // bin_y) * bin_y
-        self.bin_xstart = self.xstart // bin_x
-        self.bin_ystart = self.ystart // bin_y
-        self.bin_xend = self.xend // bin_x
-        self.bin_yend = self.yend // bin_y
+                 gsagtab="41g2040ol_gsag.fits", region="inner", outfile=None,
+                 xylimits=None):
 
         self.segment = segment
         self.hv = hv
@@ -56,7 +37,42 @@ class Superdark():
         self.superdark_unbinned = np.zeros(1024*16384).reshape((1024, 16384))
         self.outfile = outfile
 
+        if xylimits == None:
+            self.get_xy_limits()
+
         self.get_gsag_holes()
+
+
+    @classmethod
+    def from_asdf(cls, superdark):
+        af = asdf.open(superdark)
+        inst = cls(hv=af["hv"], segment=af["segment"], mjdstarts=af["mjdstarts"], 
+                   mjdends=af["mjdends"], bin_x=af["bin_x"], bin_y=af["bin_y"],
+                   bin_pha=af["bin_pha"], phastart=af["phastart"],
+                   phaend=af["phaend"], outfile=superdark)
+        return inst
+
+
+    def get_xy_limits(self):
+        if self.segment == "FUVA":
+            if self.region == "inner":
+                xstart, xend, ystart, yend = 1260, 15119, 375, 660
+        elif self.segment == "FUVB":
+            if self.region == "inner":
+                xstart, xend, ystart, yend = 1000, 14990, 405, 740
+        else:
+            raise Exception(f"Invalid segment specified: {segment}")
+        while (xstart // self.bin_x) * self.bin_x < xstart:
+            xstart += 1
+        while (ystart // self.bin_y) * self.bin_y < ystart:
+            ystart += 1
+        self.xstart, self.ystart = xstart, ystart
+        self.xend = (xend // self.bin_x) * self.bin_x
+        self.yend = (yend // self.bin_y) * self.bin_y
+        self.bin_xstart = self.xstart // self.bin_x
+        self.bin_ystart = self.ystart // self.bin_y
+        self.bin_xend = self.xend // self.bin_x
+        self.bin_yend = self.yend // self.bin_y
 
 
     def create_superdark(self):
