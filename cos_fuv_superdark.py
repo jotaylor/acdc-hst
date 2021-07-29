@@ -2,6 +2,7 @@ import datetime
 import argparse
 import os
 import glob
+import copy
 
 import asdf
 from astropy.io import fits
@@ -11,13 +12,16 @@ from calcos import ccos
 import numpy as np
 import pandas as pd
 
+import matplotlib.pyplot as plt
+from matplotlib.backends.backend_pdf import PdfPages
+
 from query_cos_dark import files_by_mjd
 
 class Superdark():
     def __init__(self, hv, segment, mjdstarts, mjdends, dayint=100, bin_x=1,
                  bin_y=1, bin_pha=1, phastart=1, phaend=31, 
                  gsagtab="41g2040ol_gsag.fits", region="inner", outfile=None,
-                 xylimits=None):
+                 outdir=".", xylimits=None):
 
         self.segment = segment
         self.hv = hv
@@ -36,6 +40,7 @@ class Superdark():
         self.gsagtab = gsagtab
         self.superdark_unbinned = np.zeros(1024*16384).reshape((1024, 16384))
         self.outfile = outfile
+        self.outdir = outdir
 
         if xylimits == None:
             self.get_xy_limits()
@@ -50,6 +55,11 @@ class Superdark():
                    mjdends=af["mjdends"], bin_x=af["bin_x"], bin_y=af["bin_y"],
                    bin_pha=af["bin_pha"], phastart=af["phastart"],
                    phaend=af["phaend"], outfile=superdark)
+        inst.outfile = superdark
+        inst.superdark = copy.deepcopy(af["pha1-30"])
+        inst.total_exptime = af["total_exptime"]
+        inst.total_files = af["total_files"]
+        af.close()
         return inst
 
 
@@ -133,30 +143,42 @@ class Superdark():
             key = f"pha{pha_range[i]}-{pha_range[i+1]}"
             inds = np.where(pha_images[key] == 99999)
             pha_images[key][inds] = 0
-        pha_images["xstart"] = self.xstart
-        pha_images["ystart"] = self.ystart
-        pha_images["phastart"] = pha_range[0]
-        pha_images["xend"] = self.xend
-        pha_images["yend"] = self.yend
-        pha_images["phaend"] = pha_range[-1]
-        pha_images["bin_x"] = self.bin_x
-        pha_images["bin_y"] = self.bin_y
-        pha_images["bin_pha"] = self.bin_pha
-        pha_images["mjdstarts"] = self.mjdstarts
-        pha_images["mjdends"] = self.mjdends
-        pha_images["segment"] = self.segment
-        pha_images["hv"] = self.hv
-        pha_images["total_exptime"] = total_exptime
-        pha_images["total_files"] = total_files
-        af = asdf.AsdfFile(pha_images)
-        today = runstart.strftime("%d%b%y-%H:%M:%S")
+
+        self.total_exptime = total_exptime
+        self.total_files = total_files
+
+        # Do not support PHA binning for the moment
+        self.superdark = pha_images["pha1-30"]
+
+        # Write out ASDF file
+        self.write_superdark(pha_images)
+        runend = datetime.datetime.now()
+        print("End time: {}".format(runend))
+        print("Total time: {}".format(runend-runstart))
+
+    
+    def write_superdark(self, data_dict):
+        data_dict["xstart"] = self.xstart
+        data_dict["ystart"] = self.ystart
+        data_dict["phastart"] = self.phastart
+        data_dict["xend"] = self.xend
+        data_dict["yend"] = self.yend
+        data_dict["phaend"] = self.phaend
+        data_dict["bin_x"] = self.bin_x
+        data_dict["bin_y"] = self.bin_y
+        data_dict["bin_pha"] = self.bin_pha
+        data_dict["mjdstarts"] = self.mjdstarts
+        data_dict["mjdends"] = self.mjdends
+        data_dict["segment"] = self.segment
+        data_dict["hv"] = self.hv
+        data_dict["total_exptime"] = self.total_exptime
+        data_dict["total_files"] = self.total_files
+        af = asdf.AsdfFile(data_dict)
+        today = datetime.datetime.now().strftime("%d%b%y-%H:%M:%S")
         if self.outfile is None:
             self.outfile = f"superdark_{self.segment}_{self.hv}_{today}.asdf"
         af.write_to(self.outfile)
         print(f"Wrote {self.outfile}")
-        runend = datetime.datetime.now()
-        print("End time: {}".format(runend))
-        print("Total time: {}".format(runend-runstart))
 
 
     def get_gsag_holes(self):
@@ -231,4 +253,65 @@ class Superdark():
 
         return final_image
 
+    def bin_superdark(self, bin_x, bin_y, bin_pha=None, xstart=None, xend=None,
+                      ystart=None, yend=None, phastart=None, phaend=None,
+                      outfile=None):
+        
+        # Do not bin PHA for the moment.
 
+
+        # Bin in spatial directions
+        sh = np.shape(self.superdark)
+        xdim = sh[1]
+        ydim = sh[0]
+        b_x0 = 0
+        b_y0 = 0
+        b_x1 = (xdim // bin_x) * bin_x 
+        b_y1 = (ydim // bin_y) * bin_y
+        self.xend = b_x1 * self.bin_x + self.xstart
+        self.yend = b_y1 * self.bin_y + self.ystart
+        
+        self.bin_x *= bin_x
+        self.bin_y *= bin_y
+
+        pdffile = os.path.join(self.outdir, self.outfile.replace("asdf", "pdf"))
+        pdf = PdfPages(pdffile)
+        binned = self.superdark[b_y0:b_y1, b_x0:b_x1]
+        binned_sh = np.shape(binned)
+        binned_xdim = binned_sh[1]
+        binned_ydim = binned_sh[0]
+        tmp = binned.reshape(binned_ydim // bin_y, bin_y, binned_xdim // bin_x, bin_x)
+        binned = tmp.sum(axis=3).sum(axis=1)
+        self.superdark = binned
+        rate = binned/self.total_exptime
+        print(f"For PHAs 1 through 30")
+        print(f"Binning by X={self.bin_x}, Y={self.bin_y}")
+        print(f"\tTotal number of events: {np.sum(binned):,}")
+        print(f"\tTotal exptime of superdark: {self.total_exptime:,}")
+        print(f"\tMinimum number of events in a binned pixel: {np.min(binned)}")
+        print(f"\tMean number of events per binned pixel: {np.mean(binned):.1f}")
+        print(f"\t  Standard deviation: {np.std(binned):.1f}")
+        print(f"\tMedian number of events per binned pixel: {np.median(binned):.1f}")
+        print(f"\tMean countrate per binned pixel: {np.mean(rate):.2e}")
+        print(f"\t  Standard deviation: {np.std(rate):.2e}")
+        print(f"\tMedian countrate per binned pixel: {np.median(rate):.2e}")
+        fig, ax = plt.subplots(figsize=(20,5))
+        #vmin = np.mean(rate) - 3*np.std(rate)
+        vmin = np.median(rate) - np.median(rate)*0.5
+        if vmin < 0:
+            vmin = 0
+        #vmax = np.mean(rate) + 3*np.std(rate)
+        vmax = np.median(rate) + np.median(rate)*0.5
+        im = ax.imshow(rate, aspect="auto",
+                       origin="lower", cmap="inferno", vmin=vmin, vmax=vmax)
+        fig.colorbar(im, label="Counts/s", format="%.2e")
+
+        ax.set_title(f"{self.segment}; HV={self.hv}; MJD {self.mjdstarts}-{self.mjdends}; PHA 1-30; X bin={self.bin_x} Y bin={self.bin_y}")
+        plt.tight_layout()
+        pdf.savefig(fig)
+        pdf.close()
+        print(f"Wrote {pdffile}")
+
+        if outfile is None:
+            self.outfile = "binned_" + self.outfile
+        self.write_superdark({"pha1-30": self.superdark})
