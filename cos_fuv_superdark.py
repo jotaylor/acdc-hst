@@ -19,10 +19,15 @@ from query_cos_dark import files_by_mjd
 
 class Superdark():
     def __init__(self, hv, segment, mjdstarts, mjdends, dayint=100, bin_x=1,
-                 bin_y=1, bin_pha=1, phastart=1, phaend=31, 
+                 bin_y=1, bin_pha=1, phastart=1, phaend=31, pha_bins=None, 
                  gsagtab="41g2040ol_gsag.fits", region="inner", outfile=None,
                  outdir=".", xylimits=None):
-
+        """
+        To keep things consistent, start and stop range are defined the same
+        as within python- start is inclusive but stop is EXCLUSIVE. E.g.
+        using a PHA range of 1 to 31 means you will get PHA=1 up to PHA=30, but
+        not PHA=31.
+        """
         self.segment = segment
         self.hv = hv
         self.region = region
@@ -32,13 +37,17 @@ class Superdark():
         self.dayint = dayint
         self.bin_x = bin_x
         self.bin_y = bin_y
-        if bin_pha == "all":
-            bin_pha = phaend - phastart - 1
-        self.bin_pha = bin_pha
+        
         self.phastart = phastart
         self.phaend = phaend
+        if bin_pha == "all":
+            bin_pha = phaend - phastart
+        self.bin_pha = bin_pha
+        self.pha_bins = pha_bins
+        self.get_pha_bins()
+
+        self.superdarks = []
         self.gsagtab = gsagtab
-        self.superdark_unbinned = np.zeros(1024*16384).reshape((1024, 16384))
         self.outfile = outfile
         self.outdir = outdir
 
@@ -51,16 +60,34 @@ class Superdark():
     @classmethod
     def from_asdf(cls, superdark):
         af = asdf.open(superdark)
+        if "pha_bins" in af.keys():
+            pha_bins = af["pha_bins"]
+        else:
+            pha_bins = None
         inst = cls(hv=af["hv"], segment=af["segment"], mjdstarts=af["mjdstarts"], 
                    mjdends=af["mjdends"], bin_x=af["bin_x"], bin_y=af["bin_y"],
                    bin_pha=af["bin_pha"], phastart=af["phastart"],
-                   phaend=af["phaend"], outfile=superdark)
+                   phaend=af["phaend"], pha_bins=pha_bins, 
+                   outfile=superdark)
         inst.outfile = superdark
         inst.superdark = copy.deepcopy(af["pha1-30"])
         inst.total_exptime = af["total_exptime"]
         inst.total_files = af["total_files"]
         af.close()
         return inst
+
+
+    def get_pha_bins(self):
+        if self.pha_bins is None:
+            self.pha_bins = np.arange(self.phastart, self.phaend+1, self.bin_pha)
+        else:
+            self.phastart = self.pha_bins[0]
+            self.phaend = self.pha_bins[-1]
+            grid = list(set(self.pha_bins[1:] - self.pha_bins[:-1]))
+            if len(grid) == 1:
+                self.bin_pha = grid[0]
+            else:
+                self.bin_pha = None
 
 
     def get_xy_limits(self):
@@ -95,7 +122,6 @@ class Superdark():
             total_days = 0
             total_exptime = 0
             total_files = 0
-            pha_range = np.arange(self.phastart, self.phaend, self.bin_pha)
 
             while notfilled is True:
                 total_days += self.dayint
@@ -116,9 +142,9 @@ class Superdark():
                     continue
                 total_exptime += sum([fits.getval(x, "exptime", 1) for x in darks])
                 total_files += len(darks)
-                for i in range(len(pha_range)-1):
-                    print(f"   Binning corrtags PHA {pha_range[i]} through {pha_range[i+1]}...")
-                    sum_image = self.bin_corrtags(darks, phastart=pha_range[i], phaend=pha_range[i+1])
+                for i in range(len(self.pha_bins)-1):
+                    print(f"   Binning corrtags, {self.pha_bins[i]} <= PHA < {self.pha_bins[i+1]}...")
+                    sum_image = self.bin_corrtags(darks, phastart=self.pha_bins[i], phaend=self.pha_bins[i+1])
                     print("   Binning done")
                     for j in range(len(gsag_df)):
                         sum_image[gsag_df.iloc[j]["Y0"]:gsag_df.iloc[j]["Y1"], gsag_df.iloc[j]["X0"]:gsag_df.iloc[j]["X1"]] = 99999
@@ -129,7 +155,7 @@ class Superdark():
                     zeros = np.where(binned_inner == 0)
                     if len(zeros[0]) != 0:
                         notfilled = True
-                    key = f"pha{pha_range[i]}-{pha_range[i+1]}"
+                    key = f"pha{self.pha_bins[i]}-{self.pha_bins[i+1]}"
                     if key in pha_images:
                         pha_images[key] += binned_inner
                     else:
@@ -139,16 +165,14 @@ class Superdark():
                     print("\nWarning: Not every pixel had events at every PHA")
                     notfilled = False
         # Undo 99999 put in for gainsag holes
-        for i in range(len(pha_range)-1):
-            key = f"pha{pha_range[i]}-{pha_range[i+1]}"
-            inds = np.where(pha_images[key] == 99999)
+        for i in range(len(self.pha_bins)-1):
+            key = f"pha{self.pha_bins[i]}-{self.pha_bins[i+1]}"
+            inds = np.where(pha_images[key] % 99999 == 0)
             pha_images[key][inds] = 0
+            self.superdarks.append(pha_images[key])
 
         self.total_exptime = total_exptime
         self.total_files = total_files
-
-        # Do not support PHA binning for the moment
-        self.superdark = pha_images["pha1-30"]
 
         # Write out ASDF file
         self.write_superdark(pha_images)
@@ -167,6 +191,7 @@ class Superdark():
         data_dict["bin_x"] = self.bin_x
         data_dict["bin_y"] = self.bin_y
         data_dict["bin_pha"] = self.bin_pha
+        data_dict["pha_bins"] = self.pha_bins
         data_dict["mjdstarts"] = self.mjdstarts
         data_dict["mjdends"] = self.mjdends
         data_dict["segment"] = self.segment
@@ -259,59 +284,61 @@ class Superdark():
         
         # Do not bin PHA for the moment.
 
-
         # Bin in spatial directions
-        sh = np.shape(self.superdark)
-        xdim = sh[1]
-        ydim = sh[0]
-        b_x0 = 0
-        b_y0 = 0
-        b_x1 = (xdim // bin_x) * bin_x 
-        b_y1 = (ydim // bin_y) * bin_y
-        self.xend = b_x1 * self.bin_x + self.xstart
-        self.yend = b_y1 * self.bin_y + self.ystart
-        
-        self.bin_x *= bin_x
-        self.bin_y *= bin_y
+        for i,sd in enumerate(self.superdarks):
+            pha_start = self.pha_bins[i]
+            pha_end = self.pha_bins[i+1]
+            sh = np.shape(sd)
+            xdim = sh[1]
+            ydim = sh[0]
+            b_x0 = 0
+            b_y0 = 0
+            b_x1 = (xdim // bin_x) * bin_x 
+            b_y1 = (ydim // bin_y) * bin_y
+            self.xend = b_x1 * self.bin_x + self.xstart
+            self.yend = b_y1 * self.bin_y + self.ystart
+            
+            self.bin_x *= bin_x
+            self.bin_y *= bin_y
 
-        pdffile = os.path.join(self.outdir, self.outfile.replace("asdf", "pdf"))
-        pdf = PdfPages(pdffile)
-        binned = self.superdark[b_y0:b_y1, b_x0:b_x1]
-        binned_sh = np.shape(binned)
-        binned_xdim = binned_sh[1]
-        binned_ydim = binned_sh[0]
-        tmp = binned.reshape(binned_ydim // bin_y, bin_y, binned_xdim // bin_x, bin_x)
-        binned = tmp.sum(axis=3).sum(axis=1)
-        self.superdark = binned
-        rate = binned/self.total_exptime
-        print(f"For PHAs 1 through 30")
-        print(f"Binning by X={self.bin_x}, Y={self.bin_y}")
-        print(f"\tTotal number of events: {np.sum(binned):,}")
-        print(f"\tTotal exptime of superdark: {self.total_exptime:,}")
-        print(f"\tMinimum number of events in a binned pixel: {np.min(binned)}")
-        print(f"\tMean number of events per binned pixel: {np.mean(binned):.1f}")
-        print(f"\t  Standard deviation: {np.std(binned):.1f}")
-        print(f"\tMedian number of events per binned pixel: {np.median(binned):.1f}")
-        print(f"\tMean countrate per binned pixel: {np.mean(rate):.2e}")
-        print(f"\t  Standard deviation: {np.std(rate):.2e}")
-        print(f"\tMedian countrate per binned pixel: {np.median(rate):.2e}")
-        fig, ax = plt.subplots(figsize=(20,5))
-        #vmin = np.mean(rate) - 3*np.std(rate)
-        vmin = np.median(rate) - np.median(rate)*0.5
-        if vmin < 0:
-            vmin = 0
-        #vmax = np.mean(rate) + 3*np.std(rate)
-        vmax = np.median(rate) + np.median(rate)*0.5
-        im = ax.imshow(rate, aspect="auto",
-                       origin="lower", cmap="inferno", vmin=vmin, vmax=vmax)
-        fig.colorbar(im, label="Counts/s", format="%.2e")
+            pdffile = os.path.join(self.outdir, self.outfile.replace("asdf", "pdf"))
+            pdf = PdfPages(pdffile)
+            binned = sd[b_y0:b_y1, b_x0:b_x1]
+            binned_sh = np.shape(binned)
+            binned_xdim = binned_sh[1]
+            binned_ydim = binned_sh[0]
+            tmp = binned.reshape(binned_ydim // bin_y, bin_y, binned_xdim // bin_x, bin_x)
+            binned = tmp.sum(axis=3).sum(axis=1)
+            self.superdarks[i] = binned
+            rate = binned/self.total_exptime
+            print(f"For PHAs {pha_start} through {pha_end}")
+            print(f"Binning by X={self.bin_x}, Y={self.bin_y}")
+            print(f"\tTotal number of events: {np.sum(binned):,}")
+            print(f"\tTotal exptime of superdark: {self.total_exptime:,}")
+            print(f"\tMinimum number of events in a binned pixel: {np.min(binned)}")
+            print(f"\tMean number of events per binned pixel: {np.mean(binned):.1f}")
+            print(f"\t  Standard deviation: {np.std(binned):.1f}")
+            print(f"\tMedian number of events per binned pixel: {np.median(binned):.1f}")
+            print(f"\tMean countrate per binned pixel: {np.mean(rate):.2e}")
+            print(f"\t  Standard deviation: {np.std(rate):.2e}")
+            print(f"\tMedian countrate per binned pixel: {np.median(rate):.2e}")
+            fig, ax = plt.subplots(figsize=(20,5))
+            #vmin = np.mean(rate) - 3*np.std(rate)
+            vmin = np.median(rate) - np.median(rate)*0.5
+            if vmin < 0:
+                vmin = 0
+            #vmax = np.mean(rate) + 3*np.std(rate)
+            vmax = np.median(rate) + np.median(rate)*0.5
+            im = ax.imshow(rate, aspect="auto",
+                           origin="lower", cmap="inferno", vmin=vmin, vmax=vmax)
+            fig.colorbar(im, label="Counts/s", format="%.2e")
 
-        ax.set_title(f"{self.segment}; HV={self.hv}; MJD {self.mjdstarts}-{self.mjdends}; PHA 1-30; X bin={self.bin_x} Y bin={self.bin_y}")
-        plt.tight_layout()
-        pdf.savefig(fig)
+            ax.set_title(f"{self.segment}; HV={self.hv}; MJD {self.mjdstarts}-{self.mjdends}; PHA {pha_start}-{pha_end}; X bin={self.bin_x} Y bin={self.bin_y}")
+            plt.tight_layout()
+            pdf.savefig(fig)
         pdf.close()
         print(f"Wrote {pdffile}")
 
         if outfile is None:
             self.outfile = "binned_" + self.outfile
-        self.write_superdark({"pha1-30": self.superdark})
+        self.write_superdark(self.superdarks)
