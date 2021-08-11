@@ -73,6 +73,8 @@ class Superdark():
         inst.superdark = copy.deepcopy(af["pha1-30"])
         inst.total_exptime = af["total_exptime"]
         inst.total_files = af["total_files"]
+
+#        self.superdarks
         af.close()
         return inst
 
@@ -278,12 +280,24 @@ class Superdark():
 
         return final_image
 
-    def bin_superdark(self, bin_x, bin_y, bin_pha=None, xstart=None, xend=None,
-                      ystart=None, yend=None, phastart=None, phaend=None,
-                      outfile=None):
+    
+    def bin_superdark(self, bin_x, bin_y, pha_bins=None, outfile=None):
         
-        # Do not bin PHA for the moment.
-
+        # Bin across PHA
+        if pha_bins is not None:
+            for b in pha_bins:
+                if b not in self.pha_bins:
+                    raise IndexError(f"Previous PHA bins not compatible with new bins, {self.pha_bins} vs {pha_bins}")
+            superdarks = []
+            inds = np.nonzero(np.in1d(self.pha_bins, pha_bins))
+            for i in range(len(inds)-1):
+                superdark = self.superdarks[i]
+                for j in range(i+1, inds[i+1]):
+                    superdark += self.superdarks[j]
+                superdarks.append(superdark)
+            self.pha_bins = pha_bins
+            self.get_pha_bins()
+             
         # Bin in spatial directions
         for i,sd in enumerate(self.superdarks):
             pha_start = self.pha_bins[i]
