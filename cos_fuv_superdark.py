@@ -1,6 +1,9 @@
+import os
+os.environ["GOTO_NUM_THREADS"] = "2"
+os.environ["OMP_NUM_THREADS"] = "2"
+os.environ["OPENBLAS_NUM_THREADS"] = "2"
 import datetime
 import argparse
-import os
 import glob
 import copy
 
@@ -11,6 +14,7 @@ from calcos import ccos
 
 import numpy as np
 import pandas as pd
+import dask
 
 import matplotlib.pyplot as plt
 from matplotlib.backends.backend_pdf import PdfPages
@@ -61,22 +65,25 @@ class Superdark():
     def from_asdf(cls, superdark):
         af = asdf.open(superdark)
         if "pha_bins" in af.keys():
-            pha_bins = af["pha_bins"]
+            pha_bins = copy.deepcopy(af["pha_bins"])
         else:
             pha_bins = None
-        inst = cls(hv=af["hv"], segment=af["segment"], mjdstarts=af["mjdstarts"], 
+        self = cls(hv=af["hv"], segment=af["segment"], mjdstarts=af["mjdstarts"], 
                    mjdends=af["mjdends"], bin_x=af["bin_x"], bin_y=af["bin_y"],
                    bin_pha=af["bin_pha"], phastart=af["phastart"],
                    phaend=af["phaend"], pha_bins=pha_bins, 
                    outfile=superdark)
-        inst.outfile = superdark
-        inst.superdark = copy.deepcopy(af["pha1-30"])
-        inst.total_exptime = af["total_exptime"]
-        inst.total_files = af["total_files"]
+        self.outfile = superdark
+        self.total_exptime = af["total_exptime"]
+        self.total_files = af["total_files"]
 
-#        self.superdarks
+        self.pha_images = {}
+        for i in range(len(self.pha_bins)-1):
+            key = f"pha{self.pha_bins[i]}-{self.pha_bins[i+1]}"
+            self.pha_images[key] = copy.deepcopy(af[key])
+            self.superdarks.append(copy.deepcopy(af[key]))
         af.close()
-        return inst
+        return self
 
 
     def get_pha_bins(self):
@@ -115,69 +122,76 @@ class Superdark():
 
 
     def create_superdark(self):
+
+        @dask.delayed
+        def _bin_dark(self, dark_df, phastart, phaend):
+            pha_images = {} 
+            darks = dark_df["fileloc"].values
+            assert len(darks) != 0, "ERROR: no darks found at all!!"
+                
+            total_exptime = sum([fits.getval(x, "exptime", 1) for x in darks])
+            gsag_df = self.gsag_holes.loc[(self.gsag_holes["DATE"] > self.mjdstarts[0]) & (self.gsag_holes["DATE"] < self.mjdends[0])]
+            print(f"   Binning corrtags, {phastart} <= PHA < {phaend}...")
+            sum_image = self.bin_corrtags(darks, phastart=phastart, phaend=phaend)
+            for j in range(len(gsag_df)):
+                sum_image[gsag_df.iloc[j]["Y0"]:gsag_df.iloc[j]["Y1"], gsag_df.iloc[j]["X0"]:gsag_df.iloc[j]["X1"]] = 99999
+            tmp = sum_image.reshape(1024 // self.bin_y, self.bin_y,
+                                    16384 // self.bin_x, self.bin_x)
+            binned = tmp.sum(axis=3).sum(axis=1)
+            binned_inner = binned[self.bin_ystart:self.bin_yend, self.bin_xstart:self.bin_xend]
+            zeros = np.where(binned_inner == 0)
+            key = f"pha{phastart}-{phaend}"
+            pha_images[key] = binned_inner
+            return pha_images, total_exptime
+
         notfilled = True
-        pha_images = {}
+        self.pha_images = {}
         runstart = datetime.datetime.now()
         print("\nStart time: {}".format(runstart))
+        dark_dfs = []
+        total_days = 0
+        total_exptime = 0
+        total_files = 0
         for k in range(len(self.mjdstarts)):
             start = self.mjdstarts[k]
-            total_days = 0
-            total_exptime = 0
-            total_files = 0
-
-            while notfilled is True:
+            done = False
+            while done is False:
                 total_days += self.dayint
                 if total_days > self.ndays[k]:
                     total_days = self.ndays[k]
+                    done = True
                 end = start + self.dayint
                 if end > self.mjdends[k]:
                     end = self.mjdends[k]
-                notfilled = False
                 print(f"Using darks from MJD {start:,}-{end:,}; {total_days}/{self.ndays[k]} days")
-                gsag_df = self.gsag_holes.loc[(self.gsag_holes["DATE"] > start) & (self.gsag_holes["DATE"] < end)]
                 print("   Querying...")
                 dark_df = files_by_mjd(start, end, segment=self.segment, hv=self.hv)
+                dark_dfs.append(dark_df)
                 print("   Query done")
-                darks = dark_df["fileloc"].values
-                if len(darks) == 0:
-                    notfilled = True
-                    continue
-                total_exptime += sum([fits.getval(x, "exptime", 1) for x in darks])
-                total_files += len(darks)
-                for i in range(len(self.pha_bins)-1):
-                    print(f"   Binning corrtags, {self.pha_bins[i]} <= PHA < {self.pha_bins[i+1]}...")
-                    sum_image = self.bin_corrtags(darks, phastart=self.pha_bins[i], phaend=self.pha_bins[i+1])
-                    print("   Binning done")
-                    for j in range(len(gsag_df)):
-                        sum_image[gsag_df.iloc[j]["Y0"]:gsag_df.iloc[j]["Y1"], gsag_df.iloc[j]["X0"]:gsag_df.iloc[j]["X1"]] = 99999
-                    tmp = sum_image.reshape(1024 // self.bin_y, self.bin_y,
-                                            16384 // self.bin_x, self.bin_x)
-                    binned = tmp.sum(axis=3).sum(axis=1)
-                    binned_inner = binned[self.bin_ystart:self.bin_yend, self.bin_xstart:self.bin_xend]
-                    zeros = np.where(binned_inner == 0)
-                    if len(zeros[0]) != 0:
-                        notfilled = True
-                    key = f"pha{self.pha_bins[i]}-{self.pha_bins[i+1]}"
-                    if key in pha_images:
-                        pha_images[key] += binned_inner
-                    else:
-                        pha_images[key] = binned_inner
                 start = end
-                if total_days >= self.ndays[k]:
-                    print("\nWarning: Not every pixel had events at every PHA")
-                    notfilled = False
+
+        dark_df = pd.concat(dark_dfs)
+        delayed_bin = [_bin_dark(self, dark_df, self.pha_bins[i], self.pha_bins[i+1]) for i in range(len(self.pha_bins)-1)]
+        out = dask.compute(*delayed_bin, scheduler='multiprocessing', num_workers=12)
+        print("   Binning done")
+        for grp in out:
+            dct = grp[0]
+            total_exptime += grp[1]
+            key = list(dct.keys())[0]
+            self.pha_images[key] = dct[key]
+
         # Undo 99999 put in for gainsag holes
         for i in range(len(self.pha_bins)-1):
             key = f"pha{self.pha_bins[i]}-{self.pha_bins[i+1]}"
-            inds = np.where(pha_images[key] % 99999 == 0)
-            pha_images[key][inds] = 0
-            self.superdarks.append(pha_images[key])
+            inds = np.where(self.pha_images[key] % 99999 == 0)
+            self.pha_images[key][inds] = 0
+            self.superdarks.append(self.pha_images[key])
 
         self.total_exptime = total_exptime
-        self.total_files = total_files
+        self.total_files = len(dark_df["fileloc"].values)
 
         # Write out ASDF file
-        self.write_superdark(pha_images)
+        self.write_superdark(self.pha_images)
         runend = datetime.datetime.now()
         print("End time: {}".format(runend))
         print("Total time: {}".format(runend-runstart))
@@ -284,39 +298,43 @@ class Superdark():
     def bin_superdark(self, bin_x, bin_y, pha_bins=None, outfile=None):
         
         # Bin across PHA
+        self.pha_images = {}
         if pha_bins is not None:
             for b in pha_bins:
                 if b not in self.pha_bins:
                     raise IndexError(f"Previous PHA bins not compatible with new bins, {self.pha_bins} vs {pha_bins}")
             superdarks = []
-            inds = np.nonzero(np.in1d(self.pha_bins, pha_bins))
+            inds = np.nonzero(np.in1d(self.pha_bins, pha_bins))[0]
             for i in range(len(inds)-1):
                 superdark = self.superdarks[i]
                 for j in range(i+1, inds[i+1]):
                     superdark += self.superdarks[j]
                 superdarks.append(superdark)
-            self.pha_bins = pha_bins
+            self.pha_bins = np.array(pha_bins)
             self.get_pha_bins()
-             
+            self.superdarks = superdarks
+        
+        if outfile is not None:
+            self.outfile = outfile
+        sh = np.shape(self.superdarks[0])
+        xdim = sh[1]
+        ydim = sh[0]
+        b_x0 = 0
+        b_y0 = 0
+        b_x1 = (xdim // bin_x) * bin_x 
+        b_y1 = (ydim // bin_y) * bin_y
+        self.xend = b_x1 * self.bin_x + self.xstart
+        self.yend = b_y1 * self.bin_y + self.ystart
+        
+        self.bin_x *= bin_x
+        self.bin_y *= bin_y
+        pdffile = os.path.join(self.outdir, self.outfile.replace("asdf", "pdf"))
+        pdf = PdfPages(pdffile)
         # Bin in spatial directions
         for i,sd in enumerate(self.superdarks):
-            pha_start = self.pha_bins[i]
-            pha_end = self.pha_bins[i+1]
-            sh = np.shape(sd)
-            xdim = sh[1]
-            ydim = sh[0]
-            b_x0 = 0
-            b_y0 = 0
-            b_x1 = (xdim // bin_x) * bin_x 
-            b_y1 = (ydim // bin_y) * bin_y
-            self.xend = b_x1 * self.bin_x + self.xstart
-            self.yend = b_y1 * self.bin_y + self.ystart
-            
-            self.bin_x *= bin_x
-            self.bin_y *= bin_y
+            phastart = self.pha_bins[i]
+            phaend = self.pha_bins[i+1]
 
-            pdffile = os.path.join(self.outdir, self.outfile.replace("asdf", "pdf"))
-            pdf = PdfPages(pdffile)
             binned = sd[b_y0:b_y1, b_x0:b_x1]
             binned_sh = np.shape(binned)
             binned_xdim = binned_sh[1]
@@ -324,8 +342,10 @@ class Superdark():
             tmp = binned.reshape(binned_ydim // bin_y, bin_y, binned_xdim // bin_x, bin_x)
             binned = tmp.sum(axis=3).sum(axis=1)
             self.superdarks[i] = binned
+            key = f"pha{phastart}-{phaend}"
+            self.pha_images[key] = binned
             rate = binned/self.total_exptime
-            print(f"For PHAs {pha_start} through {pha_end}")
+            print(f"For PHAs {phastart} through {phaend}")
             print(f"Binning by X={self.bin_x}, Y={self.bin_y}")
             print(f"\tTotal number of events: {np.sum(binned):,}")
             print(f"\tTotal exptime of superdark: {self.total_exptime:,}")
@@ -347,7 +367,7 @@ class Superdark():
                            origin="lower", cmap="inferno", vmin=vmin, vmax=vmax)
             fig.colorbar(im, label="Counts/s", format="%.2e")
 
-            ax.set_title(f"{self.segment}; HV={self.hv}; MJD {self.mjdstarts}-{self.mjdends}; PHA {pha_start}-{pha_end}; X bin={self.bin_x} Y bin={self.bin_y}")
+            ax.set_title(f"{self.segment}; HV={self.hv}; MJD {self.mjdstarts}-{self.mjdends}; PHA {phastart}-{phaend}; X bin={self.bin_x} Y bin={self.bin_y}")
             plt.tight_layout()
             pdf.savefig(fig)
         pdf.close()
@@ -355,4 +375,4 @@ class Superdark():
 
         if outfile is None:
             self.outfile = "binned_" + self.outfile
-        self.write_superdark(self.superdarks)
+        self.write_superdark(self.pha_images)
