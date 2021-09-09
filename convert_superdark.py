@@ -15,6 +15,9 @@ def bin_superdark(superdark, bin_x=8, bin_y=2, bin_pha=26,
 
     with asdf.open(superdark) as af:
         # First bin by PHA
+
+        binned = copy.deepcopy(af.tree[f"pha3-29"])
+        binned_ims = {"3-29": binned}
         binned = copy.deepcopy(af.tree[f"pha{phastart}-{phastart+1}"])
         binned_ims = {}
         counter = 1
@@ -35,8 +38,9 @@ def bin_superdark(superdark, bin_x=8, bin_y=2, bin_pha=26,
         b_y0 = 0
         b_y1 = (ydim // bin_y) * bin_y
 
-#        plt.imshow(binned_ims["3-29"], aspect="auto", origin="lower")
-#        plt.show()
+        plt.imshow(binned_ims["3-29"], aspect="auto", origin="lower")
+        plt.show()
+        cont = input("press enter")
 
         pdffile = os.path.join(outdir, superdark.replace("asdf", "pdf"))
         pdf = PdfPages(pdffile)
@@ -70,7 +74,7 @@ def bin_superdark(superdark, bin_x=8, bin_y=2, bin_pha=26,
                            origin="lower", cmap="inferno", vmin=vmin, vmax=vmax)
             fig.colorbar(im, label="Counts/s", format="%.2e")
             
-            ax.set_title(f"{af['segment']}; HV={af['hv']}; MJD {af['mjdstart']}-{af['mjdend']}; PHA {spl[0]}-{spl[1]}; X bin={bin_x} Y bin={bin_y}")
+            ax.set_title(f"{af['segment']}; HV={af['hv']}; MJD {af['mjdstarts']}-{af['mjdends']}; PHA {spl[0]}-{spl[1]}; X bin={bin_x} Y bin={bin_y}")
             plt.tight_layout()
             pdf.savefig(fig)
         pdf.close()
