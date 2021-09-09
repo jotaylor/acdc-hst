@@ -9,7 +9,11 @@ import numpy as np
 import matplotlib.pyplot as plt
 
 from make_clean_superdark import bin_corrtag
+from cos_fuv_superdark import Superdark
 
+RESEL = [6, 10]
+PHA_INCLUSIVE = [2, 23]
+PHA_INCL_EXCL = [2, 24]
 
 def fun_opt(coeffs, darks, binned_sci, excluded_rows):
 	combined_dark = linear_combination(darks, coeffs)
@@ -83,20 +87,33 @@ def c_stat(combined_dark, binned_sci, excluded_rows=[2,3,4,7,8]):
     return csum
 
 
-def main(corrtags, lo_darkname, hi_darkname, outdir="."):
-    lo_af = asdf.open(lo_darkname)
-    hi_af = asdf.open(hi_darkname)
+def main(corrtags, lo_darkname, hi_darkname, segment=None, hv=None, outdir="."):
+    Lo = Superdark.from_asdf(lo_darkname)
+    Hi = Superdark.from_asdf(hi_darkname)
+    lo_binnedname = lo_darkname.replace(".asdf", "_phabinned.asdf")
+    hi_binnedname = hi_darkname.replace(".asdf", "_phabinned.asdf")
+    Lo.bin_superdark(RESEL[0], RESEL[1], pha_bins=PHA_INCL_EXCL, outfile=lo_binnedname)
+    Hi.bin_superdark(RESEL[0], RESEL[1], pha_bins=PHA_INCL_EXCL, outfile=hi_binnedname)
+    lo_af = asdf.open(lo_binnedname)
+    hi_af = asdf.open(hi_binnedname)
     check_superdarks(lo_af, hi_af)
     binning = get_binning_pars(lo_af)
-# TO DO, fix hardcoded key
-    lo_dark = lo_af["3-29"]
-    hi_dark = hi_af["3-29"]
+    pha_str = f"pha{PHA_INCL_EXCL[0]}-{PHA_INCL_EXCL[1]}"
+    lo_dark = lo_af[pha_str]
+    hi_dark = hi_af[pha_str]
 #    lo_dark = lo_dark[:, :288]
 #    hi_dark = hi_dark[:, :288]
     plt.imshow(lo_dark, aspect="auto", origin="lower")
     plt.savefig("lo_dark.png")
     plt.clf()
     for item in corrtags:
+        if segment is not None:
+            file_segment = fits.getval(item, "segment")
+            if hv is not None:
+                file_hv = fits.getval(item, f"HVLEVEL{file_segment[-1]}", 1)
+                if file_segment != segment.upper() and str(file_hv) != str(hv):
+                    print(f"File does not match required settings: {item}")
+                    continue
         rootname0 = fits.getval(item, "rootname")
         rootname = rootname0.lower()
         binned_sci, nevents = bin_science(item, binning)
@@ -141,21 +158,21 @@ def main(corrtags, lo_darkname, hi_darkname, outdir="."):
 
 #       These two files below are used for sanity checks
         noise = copy.deepcopy(lo_af.tree)
-        noise["3-29"] = combined_dark1[sci_row]
+        noise[pha_str] = combined_dark1[sci_row]
         outfile = os.path.join(outdir, f"{rootname}_noise.asdf")
         noise_af = asdf.AsdfFile(noise)
         noise_af.write_to(outfile)
         print(f"Wrote {outfile}")
 
         signal = copy.deepcopy(lo_af.tree)
-        signal["3-29"] = binned_sci[sci_row]
+        signal[pha_str] = binned_sci[sci_row]
         outfile = os.path.join(outdir, f"{rootname}_signal.asdf")
         signal_af = asdf.AsdfFile(signal)
         signal_af.write_to(outfile)
         print(f"Wrote {outfile}")
 
         noise_comp = copy.deepcopy(lo_af.tree)
-        noise_comp["3-29"] = combined_dark1
+        noise_comp[pha_str] = combined_dark1
         outfile = os.path.join(outdir, f"{rootname}_noise_complete.asdf")
         noise_comp_af = asdf.AsdfFile(noise_comp)
         noise_comp_af.write_to(outfile)
@@ -170,6 +187,10 @@ if __name__ == "__main__":
     parser = argparse.ArgumentParser()
     parser.add_argument("-d", "--datadir",
                         help="Path to science corrtags")
+    parser.add_argument("--hv", default=None,
+                        help="HV to filter corrtags by")
+    parser.add_argument("--segment", default=None,
+                        help="Segment to filter corrtags by")
     parser.add_argument("--lo", dest="lo_darkname",
                         help="Name of low activity superdark")
     parser.add_argument("--hi", dest="hi_darkname",
@@ -179,5 +200,4 @@ if __name__ == "__main__":
     args = parser.parse_args()
     corrtags = glob.glob(os.path.join(args.datadir, "*corrtag*fits"))
 
-    main(corrtags, args.lo_darkname, args.hi_darkname, args.outdir)
-
+    main(corrtags, args.lo_darkname, args.hi_darkname, args.segment, args.hv, args.outdir)
