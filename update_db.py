@@ -1,3 +1,4 @@
+import argparse
 import datetime
 import yaml
 import os
@@ -20,7 +21,7 @@ from calculate_dark import measure_darkrate, parse_solar_files, get_1291_box
 # input dataset to save time. If TIMING = True, recorded runtime for each insert
 # is written to STDOUT.
 TESTING = False
-TIMING = False
+TIMING  = False
 
 def populate_darkevents(files, dbname="dark_events", db_table=DarkEvents):
     """
@@ -52,18 +53,23 @@ def populate_darkevents(files, dbname="dark_events", db_table=DarkEvents):
             data = hdulist[1].data
         segment = hdr0["segment"]
         filename = hdr0["filename"]
-        hv = hdr1[f"HVLEVEL{segment[-1]}"]
+        proposid = int(hdr0["proposid"])
+        hv = int(hdr1[f"HVLEVEL{segment[-1]}"])
         mjdstart = hdr1["EXPSTART"]
+        sdqflags = hdr1["sdqflags"]
 
-        for i in range(len(data["xcorr"])):
+        good = np.where(data["dq"] & sdqflags == 0)[0]
+
+        for i in good:
             time = mjdstart + data["time"][i]/60/60/24
-            event_data = {"xcorr": data["xcorr"][i],
-                          "ycorr": data["ycorr"][i],
+            event_data = {"xcorr": float(data["xcorr"][i]),
+                          "ycorr": float(data["ycorr"][i]),
                           "pha": int(data["pha"][i]),
-                          "mjd": time,
+                          "mjd": float(time),
                           "hv": hv,
                           "segment": segment,
-                          "filename": filename}
+                          "filename": filename,
+                          "proposid": proposid}
             all_events_rows.append(event_data)
 
         insert0 = timer()
@@ -82,7 +88,7 @@ def populate_darkevents(files, dbname="dark_events", db_table=DarkEvents):
     session.close()
     engine.dispose()
 
-    print("Updated table Solar")
+    print("Updated table DarkEvents")
 
 def populate_solar(files, dbname="cos_dark", db_table=Solar):
     """
@@ -249,23 +255,35 @@ def update_cos_dark(dbname):
         create_db.create_db(dbname)
     start = datetime.datetime.now()
     print("Start time: {}".format(start))
-    solar_files = glob.glob(os.path.join(SETTINGS["solar_dir"]))
+    solar_files = glob.glob(os.path.join(settings["solar_dir"]))
     populate_solar(solar_files)
-    files = glob.glob(os.path.join(SETTINGS["dark_dir"]))
+    files = glob.glob(os.path.join(settings["dark_dir"]))
     populate_darks(files)
     end = datetime.datetime.now()
     print("End time: {}".format(end))
     print("Total time: {}".format(end-start))
 
 
+def update_dark_events():
+    with open("settings.yaml", "r") as f:
+        settings = yaml.load(f, Loader=yaml.SafeLoader)
+    start = datetime.datetime.now()
+    print("Start time: {}".format(start))
+    files = glob.glob(os.path.join(settings["dark_dir"]))
+    populate_darkevents(files)
+    end = datetime.datetime.now()
+    print("End time: {}".format(end))
+    print("Total time: {}".format(end-start))
+
+
 if __name__ == "__main__":
-    parser = argparser.ArgumentParser()
-    parser.add_argument("--dbname", help="Database to update")
+    parser = argparse.ArgumentParser()
+    parser.add_argument("-d", "--dbname", help="Database to update")
     args = parser.parse_args()
     dbname = args.dbname
     if dbname == "cos_dark":
         update_cos_dark(dbname)
     elif dbname == "dark_events":
-        update_dark_events(dbname)
+        update_dark_events()
     else:
         print("Invalid database name supplied: currently supported databases are cos_dark and dark_events")
