@@ -2,9 +2,7 @@ import argparse
 import yaml
 from connect_db import load_connection
 
-DBNAME = "cos_dark.db" 
-
-def create_sqlite_db(dbname=DBNAME):
+def create_sqlite_db(dbname="cos_dark"):
     """
     Create the database, with name specified from `settings.yaml`.
 
@@ -13,19 +11,21 @@ def create_sqlite_db(dbname=DBNAME):
             `dialect+driver://username:password@host:port/database`
     """
 
-    if dbname == "cos_dark.db":
+    if dbname == "cos_dark":
         from schema import Base, Darks, Solar
+    elif dbname == "dark_events":
+        from darkevents_schema import Base, DarkEvents
     with open("settings.yaml", "r") as f:
         settings = yaml.load(f, Loader=yaml.SafeLoader)
         dbsettings = settings["dbsettings"][dbname]
     session, engine = load_connection(dbsettings)
-    # It's important that the Base from schema.py be used (from the import)
+    # It's important that the Base from appropriate be schema be used, imported above
     Base.metadata.create_all(engine)
-    print(f"Created database {dbname}")
+    print(f"Created database/tables for {dbname}")
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
-    parser.add_argument("-d", "--db", default=DBNAME,
+    parser.add_argument("-d", "--db", default="cos_dark",
                         help="Name of database to create")
     args = parser.parse_args()
     create_sqlite_db(args.db)
