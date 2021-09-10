@@ -1,9 +1,10 @@
+import yaml
 import numpy as np
 import matplotlib.pyplot as plt
-from collections import defaultdict
 from scipy.stats import norm
 from sqlalchemy.orm import load_only
 import pandas as pd
+from collections import OrderedDict,defaultdict
 
 from connect_db import load_connection
 from darkevents_schema import DarkEvents
@@ -12,7 +13,8 @@ HV = {"FUVA": [163, 167, 169, 171, 173, 178],
       "FUVB": [163, 167, 169, 175]}
 ALL_PHAS = [1,2,3,4,5,6,7,8,9,10,11,12,13,14,15,16,17,18,19,20,21,22,23,24,25,26,27,28,29,30]
 
-def query_data(segment, mjdstart, mjdend, x0, x1, y0, y1, hv=163, getall=False, dbname="cos_dark"):
+def query_data(segment="*", mjdstart=0, mjdend=99999, x0=0, x1=16385, 
+               y0=0, y1=1025, hv=163, getall=False, dbname="dark_events"):
 
     # Connect to database
     with open("settings.yaml", "r") as f:
@@ -21,7 +23,7 @@ def query_data(segment, mjdstart, mjdend, x0, x1, y0, y1, hv=163, getall=False, 
     session, engine = load_connection(dbsettings)
     
     # Define columns to return from database
-    cols = ["pha", "hv"]
+    cols = ["pha", "hv", "segment"]
     
     # Execute query
     if getall is True:
@@ -48,7 +50,7 @@ def query_data(segment, mjdstart, mjdend, x0, x1, y0, y1, hv=163, getall=False, 
 def bin_data(df, segment):
     x = []
     y = []
-    hvs_gain = defaultdict(list)
+    hvs_gain = OrderedDict()
     for hv in HV[segment]:
         phas = df.loc[df["hv"] == hv].pha.values
         s_phas = list(set(phas))
@@ -56,19 +58,25 @@ def bin_data(df, segment):
         if set(present) != set(ALL_PHAS):
             print(f"HV={hv} does not have counts at all PHAs")
             continue
-        hist, bins = np.histogram(phas, bins=np.arange(1,32))
-        mean,std = norm.fit(hist)
+        pl.hist(phas, bins=np.arange(0,32))
+        pl.show()
+        x0 = int(input("Enter starting X for normal fit: "))
+        x1 = int(input("Enter ending X for normal fit: "))
+        pl.clf()
+        subset = np.where((phas > x0) & (phas < x1))
+        mean,std = norm.fit(phas[subset])
         modal_gain = mean
-        hvs_gain[hv].append(modal_gain)
-    for i in range(len(HV[segment])):
-        if i == 0 or HV[segment][i] not in hvs_gain:
+        hvs_gain[hv] = modal_gain
+    hvs_keys = list(hvs_gain.keys())
+    for i,hv in enumerate(hvs_keys):
+        if i == 0:
             continue
         previous_hvs = np.arange(i)
         for j in previous_hvs:
-            hv_diff = HV[segment][i] - HV[segment][j]
-            gain_diff = hvs_gain[HV[segment][i]] - hvs_gain[HV[segment][j]]
+            hv_diff = hv - hvs_keys[j] 
+            gain_diff = hvs_gain[hv] - hvs_gain[hvs_keys[j]]
             relation = gain_diff / hv_diff
-            starting_gain = hvs_gain[HV[segment][j]]
+            starting_gain = hvs_gain[hvs_keys[j]]
             x.append(starting_gain)
             y.append(relation)
     
