@@ -12,7 +12,7 @@ from sqlalchemy.ext.declarative import declarative_base
 import create_db
 from connect_db import load_connection
 from schema import Solar, Darks
-from darkevents_schema import DarkEvents
+from darkevents_schema import *
 from calculate_dark import measure_darkrate, parse_solar_files, get_1291_box
 #from within_saa import get_saa_poly
 #from saa_distance import Distance3dPointTo3dCoords
@@ -41,7 +41,15 @@ def populate_darkevents(files, dbname="dark_events", db_table=DarkEvents):
         dbsettings = settings["dbsettings"][dbname]
     session, engine = load_connection(dbsettings)
     base = declarative_base(engine)
-    events_table = Table(db_table.__tablename__, base.metadata, autoload=True)
+    possible_hvs = [163, 167, 169, 171, 173, 175, 178]
+    if db_table == "all":
+        print("Inserting events into specific HV tables")
+        tables = {}
+        for hv in possible_hvs:
+            tables[hv] = Table(f"darkeventshv{hv}", base.metadata, autoload=True)
+        tables["other"] = Table(f"darkeventshvother", base.metadata, autoload=True)
+    else:
+        events_table = Table(db_table.__tablename__, base.metadata, autoload=True)
 
     for fileno,item in enumerate(files):
         loop0 = timer()    
@@ -55,6 +63,11 @@ def populate_darkevents(files, dbname="dark_events", db_table=DarkEvents):
         filename = hdr0["filename"]
         proposid = int(hdr0["proposid"])
         hv = int(hdr1[f"HVLEVEL{segment[-1]}"])
+        if db_table == "all":
+            if hv not in possible_hvs:
+                events_table = tables["other"]
+            else:
+                events_table = tables[hv]
         mjdstart = hdr1["EXPSTART"]
         sdqflags = hdr1["sdqflags"]
 
@@ -264,13 +277,15 @@ def update_cos_dark(dbname):
     print("Total time: {}".format(end-start))
 
 
-def update_dark_events():
+def update_dark_events(tablename):
     with open("settings.yaml", "r") as f:
         settings = yaml.load(f, Loader=yaml.SafeLoader)
     start = datetime.datetime.now()
     print("Start time: {}".format(start))
     files = glob.glob(os.path.join(settings["dark_dir"]))
-    populate_darkevents(files)
+    if tablename == None:
+        tablename = DarkEvents
+    populate_darkevents(files, db_table=tablename)
     end = datetime.datetime.now()
     print("End time: {}".format(end))
     print("Total time: {}".format(end-start))
@@ -279,11 +294,13 @@ def update_dark_events():
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
     parser.add_argument("-d", "--dbname", help="Database to update")
+    parser.add_argument("-t", "--tablename", default=None,
+                        help="Table(s) to update")
     args = parser.parse_args()
     dbname = args.dbname
     if dbname == "cos_dark":
         update_cos_dark(dbname)
     elif dbname == "dark_events":
-        update_dark_events()
+        update_dark_events(args.tablename)
     else:
         print("Invalid database name supplied: currently supported databases are cos_dark and dark_events")
