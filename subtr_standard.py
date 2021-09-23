@@ -9,10 +9,15 @@ import os
 
 from predict_dark_level1 import bin_science, get_binning_pars
 
-def main(corrtags, pred_noise_file, fact=2, outdir="."):
+RESEL = [6, 10]
+PHA_INCLUSIVE = [2, 23]
+PHA_INCL_EXCL = [2, 24]
+
+def main(corrtags, pred_noise_file, fact=1, outdir="."):
 # fact changes resolution, 1=highest resolution, 8=lowest resolution. to keep at same input res., use 1
     pred_noise_af = asdf.open(pred_noise_file)
-    pred_noise = pred_noise_af["3-29"]
+    pha_str = f"pha{PHA_INCL_EXCL[0]}-{PHA_INCL_EXCL[1]}"
+    pred_noise = pred_noise_af[pha_str]
     b = get_binning_pars(pred_noise_af)
     for item in corrtags:
         binned, nevents = bin_science(item, b, fact)
@@ -94,7 +99,17 @@ def main(corrtags, pred_noise_file, fact=2, outdir="."):
         
         inds = np.where(logic < 1)
         if len(logic[inds]) != 0:
-            new_events = copy.deepcopy(data[len(data) - len(inds[0]):])
+            if len(logic[inds]) >  len(data):
+                #num = int(np.ceil(len(logic[inds]) / len(data)))
+                #tmp = [data]*num
+                #longerdata = np.concatenate(tmp)
+                longerhdu = fits.BinTableHDU.from_columns(hdulist[1].columns, nrows=len(logic[inds]))
+                for colname in hdulist[1].columns.names:
+                    longercol = np.resize(data[colname], len(logic[inds]))
+                    longerhdu.data[colname][:] = longercol
+                new_events = longerhdu.data
+            else:
+                new_events = copy.deepcopy(data[len(data) - len(inds[0]):])
             for i in range(len(inds[0])):
                 y = b["bin_y"] * inds[0][i] + b["ystart"] 
                 x = b["bin_x"] * inds[1][i] + b["xstart"]
