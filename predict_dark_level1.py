@@ -10,6 +10,7 @@ import matplotlib.pyplot as plt
 
 from make_clean_superdark import bin_corrtag
 from cos_fuv_superdark import Superdark
+from calculate_dark import get_1291_box
 
 RESEL = [6, 10]
 PHA_INCLUSIVE = [2, 23]
@@ -50,7 +51,6 @@ def get_binning_pars(af):
     return binning
 
 def bin_science(corrtag, b, fact=1):
-# TO DO, hardcoded one pha range
     data = fits.getdata(corrtag)
     phainds = np.where((data["pha"] >= b["phastart"]) & 
                        (data["pha"] <= b["phaend"]))
@@ -75,7 +75,33 @@ def bin_science(corrtag, b, fact=1):
     return binned, nevents
 
 
-def c_stat(combined_dark, binned_sci, excluded_rows=[2,3,4,7,8]):
+def bin_coords(xs, ys, bin_x, bin_y, xstart=0, ystart=0):
+    xsnew = xs // bin_x
+    ysnew = ys // bin_y
+    bin_xstart = xstart // bin_x
+    bin_ystart = ystart // bin_y
+    xsnew -= bin_xstart
+    ysnew -= bin_ystart
+    return xsnew, ysnew
+
+def get_excluded_rows(segment, lp, binning):
+    psa = 0
+    excluded_rows = np.array(())
+    for aperture in ["PSA", "WCA"]:
+        psa_1291 = get_1291_box(aperture=aperture)
+        box = psa_1291[segment][f"lp{lp}_psa_1291"]
+        xmin0, xmax0, ymin0, ymax0 = box
+        xsnew, ysnew = bin_coords(np.array([xmin0, xmax0]), np.array([ymin0, ymax0]), binning["bin_x"], binning["bin_y"], binning["xstart"], binning["ystart"])
+        psa_xmin, psa_xmax = xsnew
+        psa_ymin, psa_ymax = ysnew
+        rows = np.arange(psa_ymin, psa_ymax+1)
+        if aperture == "PSA":
+            psa = rows
+        excluded_rows = np.concatenate((excluded_rows, rows))
+    
+    return excluded_rows, psa
+
+def c_stat(combined_dark, binned_sci, excluded_rows):
     csum = 0.
     for y in range(combined_dark.shape[0]):
         for x in range(combined_dark.shape[1]):
@@ -114,6 +140,11 @@ def main(corrtags, lo_darkname, hi_darkname, segment=None, hv=None, outdir="."):
                 if file_segment != segment.upper() and str(file_hv) != str(hv):
                     print(f"File does not match required settings: {item}")
                     continue
+        else:
+            segment = fits.getval(item, "segment") 
+
+        lp = fits.getval(item, "life_adj")
+        excluded_rows, psa = get_excluded_rows(segment, lp, binning)
         rootname0 = fits.getval(item, "rootname")
         rootname = rootname0.lower()
         binned_sci, nevents = bin_science(item, binning)
@@ -127,7 +158,6 @@ def main(corrtags, lo_darkname, hi_darkname, segment=None, hv=None, outdir="."):
         combined_dark = linear_combination([lo_dark, hi_dark], [lo_coeff, hi_coeff])
 # this is science extraction regions (use xtractab) for sci exp. LP
 # also exclude wavecals
-        excluded_rows = [2,3,4,7,8]
         for i in range(binned_sci.shape[0]):
             if i not in excluded_rows:
                 plt.plot(binned_sci[i], label=i)
@@ -141,15 +171,15 @@ def main(corrtags, lo_darkname, hi_darkname, segment=None, hv=None, outdir="."):
         x0 = [0.007, 0.005]
 #        x0 = [lo_coeff, hi_coeff]
         res = minimize(fun_opt, x0, method="Nelder-Mead", tol=1e-6, 
-                       args=([lo_dark, hi_dark], binned_sci, excluded_rows))
+                       args=([lo_dark, hi_dark], binned_sci, excluded_rows),
+                       bounds=((0, 9999), (0, 9999)) )
         combined_dark1 = linear_combination([lo_dark, hi_dark], res.x)
         plt.imshow(combined_dark1, aspect="auto", origin="lower")
         plt.savefig("combined_dark.png")
         plt.clf()
 
-        sci_row = 9
-        plt.plot(binned_sci[sci_row], label="Outside of sci extr")
-        plt.plot(combined_dark1[sci_row], label="Predicted dark level")
+        plt.plot(binned_sci[psa], label="Outside of sci extr")
+        plt.plot(combined_dark1[psa], label="Predicted dark level")
         plt.xlabel("X")
         plt.ylabel("Number of photons")
         plt.legend()
@@ -158,14 +188,14 @@ def main(corrtags, lo_darkname, hi_darkname, segment=None, hv=None, outdir="."):
 
 #       These two files below are used for sanity checks
         noise = copy.deepcopy(lo_af.tree)
-        noise[pha_str] = combined_dark1[sci_row]
+        noise[pha_str] = combined_dark1[psa]
         outfile = os.path.join(outdir, f"{rootname}_noise.asdf")
         noise_af = asdf.AsdfFile(noise)
         noise_af.write_to(outfile)
         print(f"Wrote {outfile}")
 
         signal = copy.deepcopy(lo_af.tree)
-        signal[pha_str] = binned_sci[sci_row]
+        signal[pha_str] = binned_sci[psa]
         outfile = os.path.join(outdir, f"{rootname}_signal.asdf")
         signal_af = asdf.AsdfFile(signal)
         signal_af.write_to(outfile)
@@ -177,7 +207,7 @@ def main(corrtags, lo_darkname, hi_darkname, segment=None, hv=None, outdir="."):
         noise_comp_af = asdf.AsdfFile(noise_comp)
         noise_comp_af.write_to(outfile)
         print(f"Wrote {outfile}")
-
+        import pdb; pdb.set_trace()
 
     lo_af.close()
     hi_af.close()
