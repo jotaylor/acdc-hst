@@ -5,10 +5,7 @@ from connect_db import load_connection
 from darkevents_schema import DarkEvents
 
 # Connect to database
-with open("settings.yaml", "r") as f:
-    settings = yaml.load(f, Loader=yaml.SafeLoader)
-    dbsettings = settings["dbsettings"]["dark_events"]
-session, engine = load_connection(dbsettings)
+session, engine = load_connection("dark_events")
 
 hv_index = Index("hv_index", DarkEvents.hv)
 
