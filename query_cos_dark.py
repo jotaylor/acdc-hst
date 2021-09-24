@@ -20,10 +20,7 @@ def all_darks(dbname="cos_dark"):
     """
     
 	# Connect to database
-    with open("settings.yaml", "r") as f:
-        settings = yaml.load(f, Loader=yaml.SafeLoader)
-        dbsettings = settings["dbsettings"][dbname]
-    session, engine = load_connection(dbsettings)
+    session, engine = load_connection(dbname)
 
     # Define columns to return from database
     cols = ["expstart", "solar_flux", "latitude", "longitude", "segment", "hv", "region", "saa_distance"]
@@ -49,10 +46,7 @@ def files_by_mjd(mjdstart, mjdend, segment="FUVA", hv=167, morecols=[],
                  dbname="cos_dark"):
     
 	# Connect to database
-    with open("settings.yaml", "r") as f:
-        settings = yaml.load(f, Loader=yaml.SafeLoader)
-        dbsettings = settings["dbsettings"][dbname]
-    session, engine = load_connection(dbsettings)
+    session, engine = load_connection(dbname)
 
     cols = ["fileloc"]
 
@@ -80,10 +74,7 @@ def counts_by_mjd(mjdstart, mjdend, morecols=[],
                   dbname="cos_dark"):
     
 	# Connect to database
-    with open("settings.yaml", "r") as f:
-        settings = yaml.load(f, Loader=yaml.SafeLoader)
-        dbsettings = settings["dbsettings"][dbname]
-    session, engine = load_connection(dbsettings)
+    session, engine = load_connection(dbname)
 
     cols = ["segment", "exptime", "hv"]
     cols += [f"dark_pha{x}" for x in range(0,32)]

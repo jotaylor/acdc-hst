@@ -15,10 +15,7 @@ def create_sqlite_db(dbname="cos_dark"):
         from schema import Base, Darks, Solar
     elif dbname == "dark_events":
         from darkevents_schema import Base, DarkEvents
-    with open("settings.yaml", "r") as f:
-        settings = yaml.load(f, Loader=yaml.SafeLoader)
-        dbsettings = settings["dbsettings"][dbname]
-    session, engine = load_connection(dbsettings)
+    session, engine = load_connection(dbname)
     # It's important that the Base from appropriate be schema be used, imported above
     Base.metadata.create_all(engine)
     print(f"Created database/tables for {dbname}")

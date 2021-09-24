@@ -36,10 +36,7 @@ def populate_darkevents(files, dbname="dark_events", db_table=DarkEvents):
     """
     
     # Connect to database.
-    with open("settings.yaml", "r") as f:
-        settings = yaml.load(f, Loader=yaml.SafeLoader)
-        dbsettings = settings["dbsettings"][dbname]
-    session, engine = load_connection(dbsettings)
+    session, engine = load_connection(dbname)
     base = declarative_base(engine)
     possible_hvs = [163, 167, 169, 171, 173, 175, 178]
     if db_table == "all":
@@ -120,10 +117,7 @@ def populate_solar(files, dbname="cos_dark", db_table=Solar):
     """
     
     # Connect to database.
-    with open("settings.yaml", "r") as f:
-        settings = yaml.load(f, Loader=yaml.SafeLoader)
-        dbsettings = settings["dbsettings"][dbname]
-    session, engine = load_connection(dbsettings)
+    session, engine = load_connection(dbname)
     base = declarative_base(engine)
     solar_table = Table(db_table.__tablename__, base.metadata, autoload=True)
 
@@ -172,10 +166,7 @@ def populate_darks(files, dbname="cos_dark", db_table=Darks):
     psa_1291 = get_1291_box()
 
     # Connect to database.
-    with open("settings.yaml", "r") as f:
-        settings = yaml.load(f, Loader=yaml.SafeLoader)
-        dbsettings = settings["dbsettings"][dbname]
-    session, engine = load_connection(dbsettings)
+    session, engine = load_connection(dbname)
     base = declarative_base(engine)
     darks_table = Table(db_table.__tablename__, base.metadata, autoload=True)
     
