@@ -13,13 +13,15 @@ RESEL = [6, 10]
 PHA_INCLUSIVE = [2, 23]
 PHA_INCL_EXCL = [2, 24]
 
-def main(corrtags, pred_noise_file, fact=1, outdir="."):
+def main(corrtags, datadir, fact=1, outdir="."):
 # fact changes resolution, 1=highest resolution, 8=lowest resolution. to keep at same input res., use 1
-    pred_noise_af = asdf.open(pred_noise_file)
-    pha_str = f"pha{PHA_INCL_EXCL[0]}-{PHA_INCL_EXCL[1]}"
-    pred_noise = pred_noise_af[pha_str]
-    b = get_binning_pars(pred_noise_af)
     for item in corrtags:
+        rootname = fits.getval(item, "rootname")
+        pred_noise_file = os.path.join(datadir, rootname+"_noise_complete.asdf")
+        pred_noise_af = asdf.open(pred_noise_file)
+        pha_str = f"pha{PHA_INCL_EXCL[0]}-{PHA_INCL_EXCL[1]}"
+        pred_noise = pred_noise_af[pha_str]
+        b = get_binning_pars(pred_noise_af)
         binned, nevents = bin_science(item, b, fact)
         
         hdulist = fits.open(item, mode="update")
@@ -126,21 +128,21 @@ def main(corrtags, pred_noise_file, fact=1, outdir="."):
             data = np.concatenate([data, new_events])
         hdulist[1].data = data
         outfile = os.path.join(outdir, f"corrected_{os.path.basename(item)}")
+        if not os.path.exists(outdir):
+            os.makedirs(outdir)
         hdulist.writeto(outfile, overwrite=True)
         print(f"Wrote {outfile}")
 
-    pred_noise_af.close() 
+        pred_noise_af.close() 
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
     parser.add_argument("-d", "--datadir",
                         help="Path to science corrtags")
-    parser.add_argument("-n", "--noise",
-                        help="Predicted noise level file")
     parser.add_argument("-o", "--outdir", default=".",
                         help="Output directory")
     args = parser.parse_args()
     corrtags = glob.glob(os.path.join(args.datadir, "*corrtag*fits"))
 
-    main(corrtags, args.noise, outdir=args.outdir)
+    main(corrtags, args.datadir, outdir=args.outdir)
 
