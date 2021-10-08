@@ -1,3 +1,26 @@
+"""
+Given COS science datasets, compare the background regions in the science
+exposures to a low/quiescent and high/active superdark.
+
+Command line-arguments:
+-d or --datatdir
+    The path to science corrtags
+--hv 
+    If datadir contains corrtags of multiple HVs, you can use --hv to use
+    just one specific HV value.
+--segment
+    If datadir contains corrtags of multiple segments, you can use --segment
+    to use just one specific segment.
+--lo
+    The name of the low activity superdark.
+--hi
+    The name of the high activity superdark.
+-o or --outdir
+    The name of the output directory where products will be written.
+--binned
+    Using this argument indicates that the supplied superdarks are already
+    binned and should not be binned any further.
+"""
 
 import copy
 import argparse
