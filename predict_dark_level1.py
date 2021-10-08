@@ -32,6 +32,10 @@ def linear_combination(darks, coeffs):
 
 
 def check_superdarks(af1, af2):
+    """
+    Ensure that both active and quiescent superdarks were binned in identical
+    ways.
+    """
     bad = False
     keys = ["bin_pha", "bin_x", "bin_y", "xstart", "xend", "ystart", "yend",
             "phastart", "phaend"]
@@ -43,6 +47,10 @@ def check_superdarks(af1, af2):
 
 
 def get_binning_pars(af):
+    """
+    For a given superdark, return the binning information in the spatial 
+    directions and PHA.
+    """
     keys = ["bin_pha", "bin_x", "bin_y", "xstart", "xend", "ystart", "yend",
             "phastart", "phaend"]
     binning = {}
@@ -52,6 +60,10 @@ def get_binning_pars(af):
     return binning
 
 def bin_science(corrtag, b, fact=1):
+    """
+    Given a corrtag with lists of events as a function of X, Y, and PHA,
+    bin the data into an image using the same bin sizes as the superdark.
+    """
     data = fits.getdata(corrtag)
     phainds = np.where((data["pha"] >= b["phastart"]) & 
                        (data["pha"] <= b["phaend"]))
@@ -77,6 +89,10 @@ def bin_science(corrtag, b, fact=1):
 
 
 def bin_coords(xs, ys, bin_x, bin_y, xstart=0, ystart=0):
+    """
+    Given a list of coordinates in X & Y, transform them into the superdark's
+    binned (and possibly offset) coordinate system.
+    """
     xsnew = xs // bin_x
     ysnew = ys // bin_y
     bin_xstart = xstart // bin_x
@@ -86,6 +102,11 @@ def bin_coords(xs, ys, bin_x, bin_y, xstart=0, ystart=0):
     return xsnew, ysnew
 
 def get_excluded_rows(segment, lp, binning):
+    """
+    Determine the rows that correspond to the PSA and WCA apertures for a 
+    given segment and lifetime position. Return the row indices in the
+    binned superdark coordinate system.
+    """
     psa = 0
     excluded_rows = np.array(())
     for aperture in ["PSA", "WCA"]:
