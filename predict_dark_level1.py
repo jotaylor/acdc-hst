@@ -1,3 +1,4 @@
+
 import copy
 import argparse
 import os
@@ -98,6 +99,8 @@ def get_excluded_rows(segment, lp, binning):
         if aperture == "PSA":
             psa = rows
         excluded_rows = np.concatenate((excluded_rows, rows))
+    excluded_rows = excluded_rows.astype(int)
+    psa = psa.astype(int) 
     
     return excluded_rows, psa
 
@@ -113,13 +116,17 @@ def c_stat(combined_dark, binned_sci, excluded_rows):
     return csum
 
 
-def main(corrtags, lo_darkname, hi_darkname, segment=None, hv=None, outdir="."):
-    Lo = Superdark.from_asdf(lo_darkname)
-    Hi = Superdark.from_asdf(hi_darkname)
-    lo_binnedname = lo_darkname.replace(".asdf", "_phabinned.asdf")
-    hi_binnedname = hi_darkname.replace(".asdf", "_phabinned.asdf")
-    Lo.bin_superdark(RESEL[0], RESEL[1], pha_bins=PHA_INCL_EXCL, outfile=lo_binnedname)
-    Hi.bin_superdark(RESEL[0], RESEL[1], pha_bins=PHA_INCL_EXCL, outfile=hi_binnedname)
+def main(corrtags, lo_darkname, hi_darkname, segment=None, hv=None, outdir=".", binned=False):
+    if binned is False:
+        Lo = Superdark.from_asdf(lo_darkname)
+        Hi = Superdark.from_asdf(hi_darkname)
+        lo_binnedname = lo_darkname.replace(".asdf", "_phabinned.asdf")
+        hi_binnedname = hi_darkname.replace(".asdf", "_phabinned.asdf")
+        Lo.bin_superdark(RESEL[0]*2, RESEL[1]*2, pha_bins=PHA_INCL_EXCL, outfile=lo_binnedname)
+        Hi.bin_superdark(RESEL[0]*2, RESEL[1]*2, pha_bins=PHA_INCL_EXCL, outfile=hi_binnedname)
+    else:
+        lo_binnedname = lo_darkname
+        hi_binnedname = hi_darkname
     lo_af = asdf.open(lo_binnedname)
     hi_af = asdf.open(hi_binnedname)
     check_superdarks(lo_af, hi_af)
@@ -131,6 +138,9 @@ def main(corrtags, lo_darkname, hi_darkname, segment=None, hv=None, outdir="."):
 #    hi_dark = hi_dark[:, :288]
     plt.imshow(lo_dark, aspect="auto", origin="lower")
     plt.savefig("lo_dark.png")
+    plt.clf()
+    plt.imshow(hi_dark, aspect="auto", origin="lower")
+    plt.savefig("hi_dark.png")
     plt.clf()
     for item in corrtags:
         if segment is not None:
@@ -149,7 +159,7 @@ def main(corrtags, lo_darkname, hi_darkname, segment=None, hv=None, outdir="."):
         rootname = rootname0.lower()
         binned_sci, nevents = bin_science(item, binning)
         plt.imshow(binned_sci, aspect="auto", origin="lower")
-        plt.savefig("binned_sci.png")
+        plt.savefig(f"{rootname}_binned_sci.png")
         plt.clf()
         sci_exp = fits.getval(item, "exptime", 1)
         # Initial guess is 0.5 contribution for each superdark
@@ -162,7 +172,7 @@ def main(corrtags, lo_darkname, hi_darkname, segment=None, hv=None, outdir="."):
             if i not in excluded_rows:
                 plt.plot(binned_sci[i], label=i)
         plt.legend()
-        plt.savefig("rows.png")
+        plt.savefig(f"{rootname}_rows.png")
         plt.clf()
         val_c = c_stat(combined_dark, binned_sci, excluded_rows)
 
@@ -172,18 +182,20 @@ def main(corrtags, lo_darkname, hi_darkname, segment=None, hv=None, outdir="."):
 #        x0 = [lo_coeff, hi_coeff]
         res = minimize(fun_opt, x0, method="Nelder-Mead", tol=1e-6, 
                        args=([lo_dark, hi_dark], binned_sci, excluded_rows),
-                       bounds=((0, 9999), (0, 9999)) )
+                       bounds=[(0.0, None), (0, None)], options={'maxiter': 1000})
         combined_dark1 = linear_combination([lo_dark, hi_dark], res.x)
         plt.imshow(combined_dark1, aspect="auto", origin="lower")
-        plt.savefig("combined_dark.png")
+        plt.savefig(f"{rootname}_combined_dark.png")
         plt.clf()
 
-        plt.plot(binned_sci[psa], label="Outside of sci extr")
-        plt.plot(combined_dark1[psa], label="Predicted dark level")
+        # Use just one row outside of extraction regions
+        row = psa[0]
+        plt.plot(binned_sci[row], label=f"Binned science row={row}")
+        plt.plot(combined_dark1[row], label=f"Predicted dark row={row}")
         plt.xlabel("X")
         plt.ylabel("Number of photons")
         plt.legend()
-        plt.savefig("predicted_dark.png")
+        plt.savefig(f"{rootname}_predicted_dark.png")
         plt.clf()
 
 #       These two files below are used for sanity checks
@@ -207,7 +219,6 @@ def main(corrtags, lo_darkname, hi_darkname, segment=None, hv=None, outdir="."):
         noise_comp_af = asdf.AsdfFile(noise_comp)
         noise_comp_af.write_to(outfile)
         print(f"Wrote {outfile}")
-        import pdb; pdb.set_trace()
 
     lo_af.close()
     hi_af.close()
@@ -227,7 +238,10 @@ if __name__ == "__main__":
                         help="Name of high activity superdark")
     parser.add_argument("-o", "--outdir", default=".",
                         help="Name of output directory")
+    parser.add_argument("--binned", default=False,
+                        action="store_true",
+                        help="Toggle to indicate that supplied superdarks are binned")
     args = parser.parse_args()
     corrtags = glob.glob(os.path.join(args.datadir, "*corrtag*fits"))
 
-    main(corrtags, args.lo_darkname, args.hi_darkname, args.segment, args.hv, args.outdir)
+    main(corrtags, args.lo_darkname, args.hi_darkname, args.segment, args.hv, args.outdir, args.binned)
