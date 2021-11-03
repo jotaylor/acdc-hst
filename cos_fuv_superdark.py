@@ -295,7 +295,7 @@ class Superdark():
         return final_image
 
     
-    def bin_superdark(self, bin_x, bin_y, pha_bins=None, outfile=None):
+    def bin_superdark(self, bin_x, bin_y, pha_bins=None, outfile=None, verbose=True):
         
         # Bin across PHA
         self.pha_images = {}
@@ -345,17 +345,19 @@ class Superdark():
             key = f"pha{phastart}-{phaend}"
             self.pha_images[key] = binned
             rate = binned/self.total_exptime
-            print(f"For PHAs {phastart} through {phaend}")
-            print(f"Binning by X={self.bin_x}, Y={self.bin_y}")
-            print(f"\tTotal number of events: {np.sum(binned):,}")
-            print(f"\tTotal exptime of superdark: {self.total_exptime:,}")
-            print(f"\tMinimum number of events in a binned pixel: {np.min(binned)}")
-            print(f"\tMean number of events per binned pixel: {np.mean(binned):.1f}")
-            print(f"\t  Standard deviation: {np.std(binned):.1f}")
-            print(f"\tMedian number of events per binned pixel: {np.median(binned):.1f}")
-            print(f"\tMean countrate per binned pixel: {np.mean(rate):.2e}")
-            print(f"\t  Standard deviation: {np.std(rate):.2e}")
-            print(f"\tMedian countrate per binned pixel: {np.median(rate):.2e}")
+            if verbose is True:
+                print(f"For PHAs {phastart} through {phaend}")
+                print(f"Binning by X={self.bin_x}, Y={self.bin_y}")
+                print(f"\tTotal number of events: {np.sum(binned):,}")
+                print(f"\tTotal exptime of superdark: {self.total_exptime:,}")
+                print(f"\tMinimum number of events in a binned pixel: {np.min(binned)}")
+                print(f"\tMaximum number of events in a binned pixel: {np.max(binned)}")
+                print(f"\tMean number of events per binned pixel: {np.mean(binned):.1f}")
+                print(f"\t  Standard deviation: {np.std(binned):.1f}")
+                print(f"\tMedian number of events per binned pixel: {np.median(binned):.1f}")
+                print(f"\tMean countrate per binned pixel: {np.mean(rate):.2e}")
+                print(f"\t  Standard deviation: {np.std(rate):.2e}")
+                print(f"\tMedian countrate per binned pixel: {np.median(rate):.2e}")
             fig, ax = plt.subplots(figsize=(20,5))
             #vmin = np.mean(rate) - 3*np.std(rate)
             vmin = np.median(rate) - np.median(rate)*0.5
