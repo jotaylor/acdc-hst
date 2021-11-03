@@ -181,6 +181,8 @@ def main(corrtags, lo_darkname, hi_darkname, segment=None, hv=None, outdir=".", 
         Hi = Superdark.from_asdf(hi_darkname)
         lo_binnedname = lo_darkname.replace(".asdf", "_phabinned.asdf")
         hi_binnedname = hi_darkname.replace(".asdf", "_phabinned.asdf")
+        Lo.screen_counts(verbose=False)
+        Hi.screen_counts(erbose=False)
         Lo.bin_superdark(RESEL[0]*2, RESEL[1]*2, pha_bins=PHA_INCL_EXCL, outfile=lo_binnedname)
         Hi.bin_superdark(RESEL[0]*2, RESEL[1]*2, pha_bins=PHA_INCL_EXCL, outfile=hi_binnedname)
     else:
