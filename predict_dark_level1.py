@@ -176,13 +176,16 @@ def c_stat(combined_dark, binned_sci, excluded_rows):
 
 
 def main(corrtags, lo_darkname, hi_darkname, segment=None, hv=None, outdir=".", binned=False):
+    if not os.path.exists(outdir):
+        os.makedirs(outdir)
+
     if binned is False:
         Lo = Superdark.from_asdf(lo_darkname)
         Hi = Superdark.from_asdf(hi_darkname)
         lo_binnedname = lo_darkname.replace(".asdf", "_phabinned.asdf")
         hi_binnedname = hi_darkname.replace(".asdf", "_phabinned.asdf")
         Lo.screen_counts(verbose=False)
-        Hi.screen_counts(erbose=False)
+        Hi.screen_counts(verbose=False)
         Lo.bin_superdark(RESEL[0]*2, RESEL[1]*2, pha_bins=PHA_INCL_EXCL, outfile=lo_binnedname)
         Hi.bin_superdark(RESEL[0]*2, RESEL[1]*2, pha_bins=PHA_INCL_EXCL, outfile=hi_binnedname)
     else:
@@ -197,11 +200,17 @@ def main(corrtags, lo_darkname, hi_darkname, segment=None, hv=None, outdir=".", 
     hi_dark = hi_af[pha_str]
 #    lo_dark = lo_dark[:, :288]
 #    hi_dark = hi_dark[:, :288]
+    dark_hv = lo_af["hv"]
+    dark_segment = lo_af["segment"]
     plt.imshow(lo_dark, aspect="auto", origin="lower")
-    plt.savefig("lo_dark.png")
+    figname = f"{dark_segment}_{dark_hv}_lo_superdark.png"
+    plt.savefig(figname)
+    print(f"Saved {figname}")
     plt.clf()
     plt.imshow(hi_dark, aspect="auto", origin="lower")
-    plt.savefig("hi_dark.png")
+    figname = f"{dark_segment}_{dark_hv}_hi_superdark.png" 
+    plt.savefig(figname)
+    print(f"Saved {figname}")
     plt.clf()
     for item in corrtags:
         if segment is not None:
@@ -220,7 +229,9 @@ def main(corrtags, lo_darkname, hi_darkname, segment=None, hv=None, outdir=".", 
         rootname = rootname0.lower()
         binned_sci, nevents = bin_science(item, binning)
         plt.imshow(binned_sci, aspect="auto", origin="lower")
-        plt.savefig(f"{rootname}_binned_sci.png")
+        figname = f"{rootname}_{segment}_binned_sci.png"
+        plt.savefig(figname)
+        print(f"Saved {figname}")
         plt.clf()
         sci_exp = fits.getval(item, "exptime", 1)
         # Initial guess is 0.5 contribution for each superdark
@@ -233,7 +244,9 @@ def main(corrtags, lo_darkname, hi_darkname, segment=None, hv=None, outdir=".", 
             if i not in excluded_rows:
                 plt.plot(binned_sci[i], label=i)
         plt.legend()
-        plt.savefig(f"{rootname}_rows.png")
+        figname = f"{rootname}_{segment}_rows.png"
+        plt.savefig(figname)
+        print(f"Saved {figname}")
         plt.clf()
         val_c = c_stat(combined_dark, binned_sci, excluded_rows)
 
@@ -247,7 +260,9 @@ def main(corrtags, lo_darkname, hi_darkname, segment=None, hv=None, outdir=".", 
                        bounds=[(1.e-8, None), (1.e-8, None)], options={'maxiter': 1000})
         combined_dark1 = linear_combination([lo_dark, hi_dark], res.x)
         plt.imshow(combined_dark1, aspect="auto", origin="lower")
-        plt.savefig(f"{rootname}_combined_dark.png")
+        figname = f"{rootname}_{segment}_combined_dark.png"
+        plt.savefig(figname)
+        print(f"Saved {figname}")
         plt.clf()
 
         # Use just one row outside of extraction regions
@@ -257,7 +272,9 @@ def main(corrtags, lo_darkname, hi_darkname, segment=None, hv=None, outdir=".", 
         plt.xlabel("X")
         plt.ylabel("Number of photons")
         plt.legend()
-        plt.savefig(f"{rootname}_predicted_dark.png")
+        figname = f"{rootname}_{segment}_predicted_dark.png"
+        plt.savefig(figname)
+        print(f"Saved {figname}")
         plt.clf()
 
 #       These two files below are used for sanity checks
