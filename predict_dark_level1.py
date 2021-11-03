@@ -124,6 +124,19 @@ def bin_coords(xs, ys, bin_x, bin_y, xstart=0, ystart=0):
     ysnew -= bin_ystart
     return xsnew, ysnew
 
+
+def unbin_coords(xs, ys, bin_x, bin_y, xstart=0, ystart=0): 
+    """
+    Given a list of binned coordinates in X & Y, transform them into the the
+    unbinned, native coordinate system.
+    """
+    xsnew0 = (xs*bin_x) + xstart 
+    ysnew0 = (ys*bin_y) + ystart 
+    xsnew1 = xsnew0 + bin_x - 1 
+    ysnew1 = ysnew0 + bin_y - 1 
+    return (xsnew0, xsnew1), (ysnew0, ysnew1) 
+
+
 def get_excluded_rows(segment, lp, binning):
     """
     Determine the rows that correspond to the PSA and WCA apertures for a 
