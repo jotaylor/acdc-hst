@@ -376,3 +376,22 @@ class Superdark():
         if outfile is None:
             self.outfile = "binned_" + self.outfile
         self.write_superdark(self.pha_images)
+
+    def screen_counts(self, verbose=True):
+        for i,sd in enumerate(self.superdarks):
+            phastart = self.pha_bins[i]
+            phaend = self.pha_bins[i+1]
+            key = f"pha{phastart}-{phaend}"
+            avg = np.mean(sd)
+            std = np.std(sd)
+            sigma10 = (std*10)
+            bad = np.where(sd > (avg+sigma10))
+            if len(bad[0]) == 0:
+                continue
+            if verbose is True:
+                print(f"{len(bad[0])} pixels have counts above 10sigma, zeroing out now...")
+            sd[bad] = 0.0
+            self.superdarks[i] = sd
+            self.pha_images[key] = sd
+
+
