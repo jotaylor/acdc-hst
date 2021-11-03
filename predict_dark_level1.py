@@ -156,6 +156,8 @@ def c_stat(combined_dark, binned_sci, excluded_rows):
                 csum = csum + 2. * (combined_dark[y,x] - binned_sci[y,x] + binned_sci[y,x] * (np.log(binned_sci[y,x]) - np.log(combined_dark[y,x])))
             elif y not in excluded_rows:
                 csum += np.abs(combined_dark[y,x]) * 2.
+            elif combined_dark[y,x] <= 0:
+                csum += np.inf
 
     return csum
 
@@ -222,11 +224,12 @@ def main(corrtags, lo_darkname, hi_darkname, segment=None, hv=None, outdir=".", 
 
 # TO DO, always hardcode this?
 # Compare hardcoded vs variables
-        x0 = [0.007, 0.005]
+        #x0 = [0.007, 0.005]
+        x0 = [0.1 * np.mean(binned_sci) / np.mean(lo_dark), 0.1 * np.mean(binned_sci) / np.mean(hi_dark)]
 #        x0 = [lo_coeff, hi_coeff]
         res = minimize(fun_opt, x0, method="Nelder-Mead", tol=1e-6, 
                        args=([lo_dark, hi_dark], binned_sci, excluded_rows),
-                       bounds=[(0.0, None), (0, None)], options={'maxiter': 1000})
+                       bounds=[(1.e-8, None), (1.e-8, None)], options={'maxiter': 1000})
         combined_dark1 = linear_combination([lo_dark, hi_dark], res.x)
         plt.imshow(combined_dark1, aspect="auto", origin="lower")
         plt.savefig(f"{rootname}_combined_dark.png")
