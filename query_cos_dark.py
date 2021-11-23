@@ -21,7 +21,7 @@ def all_darks(dbname="cos_dark"):
     
 	# Connect to database
     with open("settings.yaml", "r") as f:
-        settings = yaml.load(f)
+        settings = yaml.load(f, Loader=yaml.SafeLoader)
         dbsettings = settings["dbsettings"][dbname]
     session, engine = load_connection(dbsettings)
 
@@ -50,7 +50,7 @@ def files_by_mjd(mjdstart, mjdend, segment="FUVA", hv=167, morecols=[],
     
 	# Connect to database
     with open("settings.yaml", "r") as f:
-        settings = yaml.load(f)
+        settings = yaml.load(f, Loader=yaml.SafeLoader)
         dbsettings = settings["dbsettings"][dbname]
     session, engine = load_connection(dbsettings)
 
@@ -81,7 +81,7 @@ def counts_by_mjd(mjdstart, mjdend, morecols=[],
     
 	# Connect to database
     with open("settings.yaml", "r") as f:
-        settings = yaml.load(f)
+        settings = yaml.load(f, Loader=yaml.SafeLoader)
         dbsettings = settings["dbsettings"][dbname]
     session, engine = load_connection(dbsettings)
 

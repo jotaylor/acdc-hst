@@ -16,7 +16,7 @@ def query_data(segment, mjdstart, mjdend, x0, x1, y0, y1, hv=163, getall=False, 
 
     # Connect to database
     with open("settings.yaml", "r") as f:
-        settings = yaml.load(f)
+        settings = yaml.load(f, Loader=yaml.SafeLoader)
         dbsettings = settings["dbsettings"][dbname]
     session, engine = load_connection(dbsettings)
     
