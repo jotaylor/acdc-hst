@@ -39,6 +39,10 @@ from calculate_dark import get_1291_box
 RESEL = [6, 10]
 PHA_INCLUSIVE = [2, 23]
 PHA_INCL_EXCL = [2, 24]
+# Colorblind-safe palette below
+COLORS = ["#1b9e77", "#d95f02", "#7570b3", "#e7298a", "#66a61e", "#a6cee3", 
+          "#1f78b4", "#b2df8a", "#33a02c", "#fb9a99", "#e31a1c", "#fdbf6f", 
+          "#ff7f00", "#cab2d6", "#6a3d9a", "#ffff99", "#b15928", "#a6cee3"]
 
 def fun_opt(coeffs, darks, binned_sci, excluded_rows):
 	combined_dark = linear_combination(darks, coeffs)
@@ -175,7 +179,7 @@ def c_stat(combined_dark, binned_sci, excluded_rows):
     return csum
 
 
-def main(corrtags, lo_darkname, hi_darkname, segment=None, hv=None, outdir=".", binned=False):
+def predict_dark(corrtags, lo_darkname, hi_darkname, segment=None, hv=None, outdir=".", binned=False):
     if not os.path.exists(outdir):
         os.makedirs(outdir)
 
@@ -203,14 +207,16 @@ def main(corrtags, lo_darkname, hi_darkname, segment=None, hv=None, outdir=".", 
     dark_hv = lo_af["hv"]
     dark_segment = lo_af["segment"]
     plt.imshow(lo_dark, aspect="auto", origin="lower")
-    figname = f"{dark_segment}_{dark_hv}_lo_superdark.png"
-    plt.savefig(figname)
-    print(f"Saved {figname}")
+    plt.title("Quiescent Superdark")
+    figname = os.path.join(outdir, f"{dark_segment}_{dark_hv}_lo_superdark.png")
+    plt.savefig(figname, bbox_inches="tight")
+    print(f"Saved quiscent superdark figure: {figname}")
     plt.clf()
     plt.imshow(hi_dark, aspect="auto", origin="lower")
-    figname = f"{dark_segment}_{dark_hv}_hi_superdark.png" 
-    plt.savefig(figname)
-    print(f"Saved {figname}")
+    figname = os.path.join(outdir, f"{dark_segment}_{dark_hv}_hi_superdark.png")
+    plt.title("Active Superdark") 
+    plt.savefig(figname, bbox_inches="tight")
+    print(f"Saved active superdark figure:{figname}")
     plt.clf()
     for item in corrtags:
         if segment is not None:
@@ -223,15 +229,17 @@ def main(corrtags, lo_darkname, hi_darkname, segment=None, hv=None, outdir=".", 
         else:
             segment = fits.getval(item, "segment") 
 
+        plt.figure(figsize=(20, 8))
         lp = fits.getval(item, "life_adj")
         excluded_rows, psa = get_excluded_rows(segment, lp, binning)
         rootname0 = fits.getval(item, "rootname")
         rootname = rootname0.lower()
         binned_sci, nevents = bin_science(item, binning)
         plt.imshow(binned_sci, aspect="auto", origin="lower")
-        figname = f"{rootname}_{segment}_binned_sci.png"
-        plt.savefig(figname)
-        print(f"Saved {figname}")
+        figname = os.path.join(outdir, f"{rootname}_{segment}_binned_sci.png")
+        plt.title(f"{rootname} Binned Science Image")
+        plt.savefig(figname, bbox_inches="tight")
+        print(f"Saved binned science image: {figname}")
         plt.clf()
         sci_exp = fits.getval(item, "exptime", 1)
         # Initial guess is 0.5 contribution for each superdark
@@ -240,13 +248,19 @@ def main(corrtags, lo_darkname, hi_darkname, segment=None, hv=None, outdir=".", 
         combined_dark = linear_combination([lo_dark, hi_dark], [lo_coeff, hi_coeff])
 # this is science extraction regions (use xtractab) for sci exp. LP
 # also exclude wavecals
+        nrows = np.shape(binned_sci)[0]
+        all_rows = np.arange(nrows)
+        bkg_rows = list(set(all_rows) - set(excluded_rows))
+        plt.figure(figsize=(20, 8))
         for i in range(binned_sci.shape[0]):
             if i not in excluded_rows:
-                plt.plot(binned_sci[i], label=i)
-        plt.legend()
-        figname = f"{rootname}_{segment}_rows.png"
-        plt.savefig(figname)
-        print(f"Saved {figname}")
+                plt.plot(binned_sci[i], label=f"Row={i}", color=COLORS[i], alpha=0.8)
+        plt.title(f"{rootname}- all rows that are not in PSA/WCA")
+        plt.ylim(-0.5, 4)
+        plt.legend(loc="upper right")
+        figname = os.path.join(outdir, f"{rootname}_{segment}_rows.png")
+        plt.savefig(figname, bbox_inches="tight")
+        print(f"Saved non-PSA/WCA rows: {figname}")
         plt.clf()
         val_c = c_stat(combined_dark, binned_sci, excluded_rows)
 
@@ -260,21 +274,53 @@ def main(corrtags, lo_darkname, hi_darkname, segment=None, hv=None, outdir=".", 
                        bounds=[(1.e-8, None), (1.e-8, None)], options={'maxiter': 1000})
         combined_dark1 = linear_combination([lo_dark, hi_dark], res.x)
         plt.imshow(combined_dark1, aspect="auto", origin="lower")
-        figname = f"{rootname}_{segment}_combined_dark.png"
-        plt.savefig(figname)
-        print(f"Saved {figname}")
+        plt.title(f"{rootname} Combined Superdark")
+        figname = os.path.join(outdir, f"{rootname}_{segment}_combined_dark.png")
+        plt.savefig(figname, bbox_inches="tight")
+        print(f"Saved combined dark image: {figname}")
         plt.clf()
 
         # Use just one row outside of extraction regions
-        row = psa[0]
-        plt.plot(binned_sci[row], label=f"Binned science row={row}")
-        plt.plot(combined_dark1[row], label=f"Predicted dark row={row}")
-        plt.xlabel("X")
-        plt.ylabel("Number of photons")
-        plt.legend()
-        figname = f"{rootname}_{segment}_predicted_dark.png"
-        plt.savefig(figname)
-        print(f"Saved {figname}")
+        ncols = 3
+        nrows = int(np.ceil(len(bkg_rows)/ncols))
+        fig, axes0 = plt.subplots(nrows, ncols, figsize=(25,15))
+        axes = axes0.flatten()
+        for i in range(len(bkg_rows)):
+            row = bkg_rows[i]
+            ax = axes[i]
+            ax.plot(binned_sci[row], color=COLORS[0], 
+                    label=f"Bkgd row")
+            ax.plot(combined_dark1[row], color=COLORS[1], 
+                    label=f"Predicted Bkgd")
+            ax.set_title(f"Row = {row}")
+            ax.set_xlabel("X")
+            ax.set_ylabel("Number of photons")
+            ax.legend(loc="upper right")
+        fig.suptitle("Predicted vs. Actual Dark across non PSA/WCA rows")
+        figname = os.path.join(outdir, f"{rootname}_{segment}_predicted_dark_bkgd.png")
+        plt.savefig(figname, bbox_inches="tight")
+        print(f"Saved actual vs predicted darks: {figname}")
+        plt.clf()
+        
+        # Use just one row outside of extraction regions
+        ncols = 2
+        nrows = int(np.ceil(len(psa)/ncols))
+        fig, axes0 = plt.subplots(nrows, ncols, figsize=(25,15))
+        axes = axes0.flatten()
+        for i in range(len(psa)):
+            row = psa[i]
+            ax = axes[i]
+            ax.plot(binned_sci[row], label=f"Binned sci", color=COLORS[0])
+            ax.plot(combined_dark1[row], label=f"Predicted dark", color=COLORS[1])
+            ax.set_title(f"Row = {row}")
+            ax.set_xlabel("X")
+            ax.set_ylabel("Number of photons")
+            ax.legend(loc="upper right")
+        figname = os.path.join(outdir, f"{rootname}_{segment}_predicted_dark_sci.png")
+        fig.suptitle(f"{rootname}: Predicted dark and actual science across PSA rows")
+        plt.ylim(-1, 4)
+        plt.savefig(figname, bbox_inches="tight")
+        print(f"Saved predicted dark vs science: {figname}")
         plt.clf()
 
 #       These two files below are used for sanity checks
@@ -323,4 +369,4 @@ if __name__ == "__main__":
     args = parser.parse_args()
     corrtags = glob.glob(os.path.join(args.datadir, "*corrtag*fits"))
 
-    main(corrtags, args.lo_darkname, args.hi_darkname, args.segment, args.hv, args.outdir, args.binned)
+    predict_dark(corrtags, args.lo_darkname, args.hi_darkname, args.segment, args.hv, args.outdir, args.binned)
