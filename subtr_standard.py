@@ -22,7 +22,7 @@ RESEL = [6, 10]
 PHA_INCLUSIVE = [2, 23]
 PHA_INCL_EXCL = [2, 24]
 
-def main(corrtags, datadir, fact=1, outdir="."):
+def subtract_dark(corrtags, datadir, fact=1, outdir="."):
 # fact changes resolution, 1=highest resolution, 8=lowest resolution. to keep at same input res., use 1
     for item in corrtags:
         rootname = fits.getval(item, "rootname")
@@ -153,5 +153,5 @@ if __name__ == "__main__":
     args = parser.parse_args()
     corrtags = glob.glob(os.path.join(args.datadir, "*corrtag*fits"))
 
-    main(corrtags, args.datadir, outdir=args.outdir)
+    subtract_dark(corrtags, args.datadir, outdir=args.outdir)
 
