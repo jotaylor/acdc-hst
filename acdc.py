@@ -27,7 +27,7 @@ class Acdc():
         self.indir = indir
         self.outdir = outdir
         now = datetime.datetime.now()
-        self.cal_outdir = os.path.join(outdir, now.strftime("%d%b%Y"))
+        self.cal_outdir = os.path.join(outdir, f"cal_{now.strftime('%d%b%Y')}")
         if not os.path.exists(outdir):
             os.makedirs(outdir)
         # To do handle determining darks programmatically    
