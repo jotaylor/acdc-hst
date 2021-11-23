@@ -69,6 +69,12 @@ class Acdc():
     
     def calibrate_corrtags(self):
         for item in self.custom_corrtags:
+            with fits.open(item, mode="update") as hdulist:
+                hdr0 = hdulist[0].header
+                hdr0.set("xtrctalg", "BOXCAR")
+                hdr0.set("backcorr", "omit")
+                hdr0.set("trcecorr", "omit")
+                hdr0.set("algncorr", "omit")
             calcos.calcos(item, outdir=self.cal_outdir)
 
 
