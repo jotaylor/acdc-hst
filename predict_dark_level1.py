@@ -120,12 +120,8 @@ def bin_coords(xs, ys, bin_x, bin_y, xstart=0, ystart=0):
     Given a list of coordinates in X & Y, transform them into the superdark's
     binned (and possibly offset) coordinate system.
     """
-    xsnew = xs // bin_x
-    ysnew = ys // bin_y
-    bin_xstart = xstart // bin_x
-    bin_ystart = ystart // bin_y
-    xsnew -= bin_xstart
-    ysnew -= bin_ystart
+    xsnew = (xs - xstart) // bin_x
+    ysnew = (ys - ystart) // bin_y
     return xsnew, ysnew
 
 
@@ -147,23 +143,21 @@ def get_excluded_rows(segment, lp, binning):
     given segment and lifetime position. Return the row indices in the
     binned superdark coordinate system.
     """
-    psa = 0
+    
     excluded_rows = np.array(())
-    for aperture in ["PSA", "WCA"]:
-        psa_1291 = get_1291_box(aperture=aperture)
-        box = psa_1291[segment][f"lp{lp}_psa_1291"]
+    apertures = {"PSA": None, "WCA": None}
+    for aperture in apertures:
+        ap_1291 = get_1291_box(aperture=aperture)
+        box = ap_1291[segment][f"lp{lp}_psa_1291"]
         xmin0, xmax0, ymin0, ymax0 = box
         xsnew, ysnew = bin_coords(np.array([xmin0, xmax0]), np.array([ymin0, ymax0]), binning["bin_x"], binning["bin_y"], binning["xstart"], binning["ystart"])
-        psa_xmin, psa_xmax = xsnew
-        psa_ymin, psa_ymax = ysnew
-        rows = np.arange(psa_ymin, psa_ymax+1)
-        if aperture == "PSA":
-            psa = rows
+        ap_xmin, ap_xmax = xsnew
+        ap_ymin, ap_ymax = ysnew
+        rows = np.arange(ap_ymin, ap_ymax+1)
+        apertures[aperture] = rows
         excluded_rows = np.concatenate((excluded_rows, rows))
     excluded_rows = excluded_rows.astype(int)
-    psa = psa.astype(int) 
-    
-    return excluded_rows, psa
+    return excluded_rows, apertures
 
 def c_stat(combined_dark, binned_sci, excluded_rows):
     csum = 0.
@@ -229,16 +223,28 @@ def predict_dark(corrtags, lo_darkname, hi_darkname, segment=None, hv=None, outd
         else:
             segment = fits.getval(item, "segment") 
 
-        plt.figure(figsize=(20, 8))
+        fig, ax = plt.subplots(1, 1, figsize=(20, 8))
         lp = fits.getval(item, "life_adj")
-        excluded_rows, psa = get_excluded_rows(segment, lp, binning)
+        excluded_rows, apertures = get_excluded_rows(segment, lp, binning)
         rootname0 = fits.getval(item, "rootname")
         rootname = rootname0.lower()
         binned_sci, nevents = bin_science(item, binning)
-        plt.imshow(binned_sci, aspect="auto", origin="lower")
+        vmin = np.mean(binned_sci) - 1*np.std(binned_sci)
+        if vmin < 0:
+            vmin = 0
+        vmax = np.mean(binned_sci) + 1*np.std(binned_sci)
+        sh = np.shape(binned_sci)
+        im = ax.imshow(binned_sci, aspect="auto", origin="lower", 
+                vmin=vmin, vmax=vmax, extent=[0, sh[1], 0, sh[0]])
+        ax.axhline(apertures["PSA"][0], color=COLORS[0], label="PSA")
+        ax.axhline(apertures["PSA"][-1]+1, color=COLORS[0])
+        ax.axhline(apertures["WCA"][0], color=COLORS[1], label="WCA")
+        ax.axhline(apertures["WCA"][-1]+1, color=COLORS[1])
+        ax.legend(loc="upper right")
+        fig.colorbar(im, label="Counts")
         figname = os.path.join(outdir, f"{rootname}_{segment}_binned_sci.png")
-        plt.title(f"{rootname} Binned Science Image")
-        plt.savefig(figname, bbox_inches="tight")
+        fig.suptitle(f"{rootname} Binned Science Image", size=25)
+        fig.savefig(figname, bbox_inches="tight")
         print(f"Saved binned science image: {figname}")
         plt.clf()
         sci_exp = fits.getval(item, "exptime", 1)
@@ -274,6 +280,7 @@ def predict_dark(corrtags, lo_darkname, hi_darkname, segment=None, hv=None, outd
                        bounds=[(1.e-8, None), (1.e-8, None)], options={'maxiter': 1000})
         combined_dark1 = linear_combination([lo_dark, hi_dark], res.x)
         plt.imshow(combined_dark1, aspect="auto", origin="lower")
+        plt.colorbar(label="Counts/s")
         plt.title(f"{rootname} Combined Superdark")
         figname = os.path.join(outdir, f"{rootname}_{segment}_combined_dark.png")
         plt.savefig(figname, bbox_inches="tight")
@@ -289,9 +296,9 @@ def predict_dark(corrtags, lo_darkname, hi_darkname, segment=None, hv=None, outd
             row = bkg_rows[i]
             ax = axes[i]
             ax.plot(binned_sci[row], color=COLORS[0], 
-                    label=f"Bkgd row")
+                    label=f"Bkgd row", alpha=0.8)
             ax.plot(combined_dark1[row], color=COLORS[1], 
-                    label=f"Predicted Bkgd")
+                    label=f"Predicted Bkgd", alpha=0.8)
             ax.set_title(f"Row = {row}")
             ax.set_xlabel("X")
             ax.set_ylabel("Number of photons")
@@ -304,35 +311,35 @@ def predict_dark(corrtags, lo_darkname, hi_darkname, segment=None, hv=None, outd
         
         # Use just one row outside of extraction regions
         ncols = 2
-        nrows = int(np.ceil(len(psa)/ncols))
+        nrows = int(np.ceil(len(apertures["PSA"])/ncols))
         fig, axes0 = plt.subplots(nrows, ncols, figsize=(25,15))
         axes = axes0.flatten()
-        for i in range(len(psa)):
-            row = psa[i]
+        for i in range(len(apertures["PSA"])):
+            row = apertures["PSA"][i]
             ax = axes[i]
-            ax.plot(binned_sci[row], label=f"Binned sci", color=COLORS[0])
-            ax.plot(combined_dark1[row], label=f"Predicted dark", color=COLORS[1])
+            ax.plot(binned_sci[row], label=f"Binned sci", color=COLORS[0], alpha=0.8)
+            ax.plot(combined_dark1[row], label=f"Predicted dark", color=COLORS[1], alpha=0.8)
             ax.set_title(f"Row = {row}")
             ax.set_xlabel("X")
             ax.set_ylabel("Number of photons")
             ax.legend(loc="upper right")
+            ax.set_ylim(bottom=-1)
         figname = os.path.join(outdir, f"{rootname}_{segment}_predicted_dark_sci.png")
         fig.suptitle(f"{rootname}: Predicted dark and actual science across PSA rows")
-        plt.ylim(-1, 4)
         plt.savefig(figname, bbox_inches="tight")
         print(f"Saved predicted dark vs science: {figname}")
         plt.clf()
 
 #       These two files below are used for sanity checks
         noise = copy.deepcopy(lo_af.tree)
-        noise[pha_str] = combined_dark1[psa]
+        noise[pha_str] = combined_dark1[apertures["PSA"]]
         outfile = os.path.join(outdir, f"{rootname}_noise.asdf")
         noise_af = asdf.AsdfFile(noise)
         noise_af.write_to(outfile)
         print(f"Wrote {outfile}")
 
         signal = copy.deepcopy(lo_af.tree)
-        signal[pha_str] = binned_sci[psa]
+        signal[pha_str] = binned_sci[apertures["PSA"]]
         outfile = os.path.join(outdir, f"{rootname}_signal.asdf")
         signal_af = asdf.AsdfFile(signal)
         signal_af.write_to(outfile)
