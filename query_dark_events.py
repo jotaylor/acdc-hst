@@ -5,24 +5,11 @@ import pandas as pd
 
 from connect_db import load_connection
 import darkevents_schema
+from utils import sql_to_df
 
 DBNAME = "dark_events"
 COLUMNS = ["xcorr", "ycorr", "pha", "mjd", "hv", "segment", "filename", "proposid"]
 TIMING = False
-
-def sql_to_df(sql_results, returncols):
-    # Convert query results (list of attributes) to pandas dataframe
-#    d = {col: [getattr(x, col) for x in results] for col in returncols}
-    d = {}
-    for col in returncols:
-        try:
-            d[col] = [getattr(x, col) for x in sql_results]
-        except:
-            pass
-    df = pd.DataFrame(d)
-
-    return df
-
 
 def all_rows(hvtable, returncols=COLUMNS):
     """

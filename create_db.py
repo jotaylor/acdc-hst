@@ -2,13 +2,13 @@ import argparse
 import yaml
 from connect_db import load_connection
 
-def create_sqlite_db(dbname="cos_dark"):
+def create_db(dbname="cos_dark"):
     """
     Create the database, with name specified from `settings.yaml`.
 
     Args:
-        connection_string (str): Connection string of the form:
-            `dialect+driver://username:password@host:port/database`
+        dbname (str): Name of database to create with empty tables.
+            Currently cos_dark and dark_events are supported. 
     """
 
     if dbname == "cos_dark":
