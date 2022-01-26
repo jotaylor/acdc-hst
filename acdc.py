@@ -8,6 +8,7 @@ Another COS Dark Correction (ACDC)
 5. Coadd the calibrated x1ds to increase SNR.
 """
 
+from collections import defaultdict
 import argparse
 import os
 import glob
@@ -21,26 +22,42 @@ from subtr_standard import subtract_dark
 # This only works for STScI internal folks
 LOCAL_DARKDIR = "/astro/sveash/cos_dark/final_superdarks"
 
+
 class Acdc():
-    def __init__(self, indir, outdir, lo_darkname=None, hi_darkname=None, 
-                 binned=False, hv=None, segment=None):
+    def __init__(self, indir, outdir, binned=False):
         self.indir = indir
         self.outdir = outdir
         now = datetime.datetime.now()
         self.cal_outdir = os.path.join(outdir, f"cal_{now.strftime('%d%b%Y')}")
         if not os.path.exists(outdir):
             os.makedirs(outdir)
-        # To do handle determining darks programmatically    
-        self.lo_darkname = lo_darkname
-        self.hi_darkname = hi_darkname
-        self.binned = binned 
-        self.hv = hv
-        self.segment = segment
         corrtags = glob.glob(os.path.join(indir, "*corrtag*fits"))
-        if segment is not None or hv is not None:
-            self.orig_corrtags = self.filter_corrtags(corrtags)
-        else:
-            self.orig_corrtags = corrtags
+        self.corr_dict = self.sort_corrtags(corrtags)
+        self.dark_dict = self.sort_superdarks()
+        self.binned = binned 
+
+    
+    def sort_corrtags(self, corrtags):
+        corr_dict = defaultdict(list)
+        for item in corrtags:
+            file_segment = fits.getval(item, "segment")
+            file_hv = fits.getval(item, f"HVLEVEL{file_segment[-1]}", 1)
+            corr_dict[f"{file_segment}_{file_hv}"].append(item)
+        return corr_dict
+
+    
+    def sort_superdarks(self):
+        darks0 = glob.glob(os.path.join(LOCAL_DARKDIR, "superdark*.asdf"))
+        darks = [x for x in darks0 if "phabinned" not in x]
+        dark_dict = defaultdict(dict)
+        for dark in darks:
+            darkfile = os.path.basename(dark)
+            sp = darkfile.split("_")
+            segment = sp[1]
+            hv = sp[2]
+            period = sp[-1].split(".")[0]
+            dark_dict[f"{segment}_{hv}"][period] = dark
+        return dark_dict
 
 
     def filter_corrtags(self, corrtags):
@@ -59,16 +76,28 @@ class Acdc():
             "No supplied corrtags matched the settings HV={self.hv}, segment={self.segment}"
         return good_corrtags
 
+
 # TODO- move binning out of custom correction
     def custom_dark_correction(self):
-        predict_dark(self.orig_corrtags, self.lo_darkname, self.hi_darkname, 
-                     outdir=self.outdir, binned=self.binned)
-        subtract_dark(self.orig_corrtags, self.outdir, outdir=self.outdir)
+        for seg_hv in self.corr_dict:
+            corrtags = self.corr_dict[seg_hv]
+            lo_darkname = self.dark_dict[seg_hv]["quiescent"]
+            hi_darkname = self.dark_dict[seg_hv]["active"]
+            predict_dark(corrtags, lo_darkname, hi_darkname, 
+                         outdir=self.outdir, binned=self.binned)
+            subtract_dark(corrtags, self.outdir, outdir=self.outdir)
         self.custom_corrtags = glob.glob(os.path.join(self.outdir, "corrected*corrtag*fits"))
 
     
     def calibrate_corrtags(self):
+        calibrated = []
         for item in self.custom_corrtags:
+            if "_corrtag_a" in item:
+                other = item.replace("_corrtag_a", "_corrtag_b")
+            else:
+                other = item.replace("_corrtag_b", "_corrtag_a")
+            if other in calibrated:
+                continue
             with fits.open(item, mode="update") as hdulist:
                 hdr0 = hdulist[0].header
                 hdr0.set("xtrctalg", "BOXCAR")
@@ -76,15 +105,15 @@ class Acdc():
                 hdr0.set("trcecorr", "omit")
                 hdr0.set("algncorr", "omit")
             calcos.calcos(item, outdir=self.cal_outdir)
-
+            calibrated.append(item)
 
     
-
 #-----------------------------------------------------------------------------#
 
 def run_acdc(indir, outdir, lo_darkname=None, hi_darkname=None, binned=False, 
              hv=None, segment=None):
-    A = Acdc(indir, outdir, lo_darkname, hi_darkname, binned, hv, segment)
+    A = Acdc(indir, outdir, binned)
+    #A = Acdc(indir, outdir, lo_darkname, hi_darkname, binned, hv, segment)
     A.custom_dark_correction()
     A.calibrate_corrtags()
 
