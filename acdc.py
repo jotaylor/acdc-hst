@@ -27,6 +27,7 @@ class Acdc():
     def __init__(self, indir, outdir, binned=False):
         self.indir = indir
         self.outdir = outdir
+        self.binned = binned 
         now = datetime.datetime.now()
         self.cal_outdir = os.path.join(outdir, f"cal_{now.strftime('%d%b%Y')}")
         if not os.path.exists(outdir):
@@ -34,7 +35,6 @@ class Acdc():
         corrtags = glob.glob(os.path.join(indir, "*corrtag*fits"))
         self.corr_dict = self.sort_corrtags(corrtags)
         self.dark_dict = self.sort_superdarks()
-        self.binned = binned 
 
     
     def sort_corrtags(self, corrtags):
@@ -48,7 +48,10 @@ class Acdc():
     
     def sort_superdarks(self):
         darks0 = glob.glob(os.path.join(LOCAL_DARKDIR, "superdark*.asdf"))
-        darks = [x for x in darks0 if "phabinned" not in x]
+        if self.binned is False:
+            darks = [x for x in darks0 if "phabinned" not in x]
+        else:
+            darks = [x for x in darks0 if "phabinned" in x]
         dark_dict = defaultdict(dict)
         for dark in darks:
             darkfile = os.path.basename(dark)
