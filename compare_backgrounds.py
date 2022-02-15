@@ -1,3 +1,4 @@
+import itertools
 import numpy as np
 import argparse
 from matplotlib import pyplot as plt
@@ -5,8 +6,10 @@ import os
 import glob
 from astropy.io import fits
 from scipy import stats
+import asdf
 
 from cos_fuv_superdark import Superdark
+from utils import get_binning_pars, bin_coords
 
 LOCAL_REFDIR = "/grp/hst/cdbs/lref"
 LOCAL_DARKDIR = "/astro/sveash/cos_dark/final_superdarks"
@@ -37,7 +40,7 @@ def smooth_array(data, smoothsize=100):
     binned_x = bin_edges[:-1] + (smoothsize/2.)
     return binned_y, binned_x
 
-def get_data(flt_custom, flt_default, dark_dir=LOCAL_DARKDIR, ref_dir=LOCAL_REFDIR):
+def get_data(flt_custom, flt_default, superdark_custom, dark_dir=LOCAL_DARKDIR, ref_dir=LOCAL_REFDIR):
     data_custom = fits.getdata(flt_custom)
     data_default = fits.getdata(flt_default)
     segment = fits.getval(flt_custom, "segment")
@@ -126,42 +129,71 @@ def get_data(flt_custom, flt_default, dark_dir=LOCAL_DARKDIR, ref_dir=LOCAL_REFD
     bkg1_default,_ = smooth_array(bkg1_sum_default)
     bkg2_sum_default = sum_bkg_region(data_default, bkg2_y0, bkg2_y1)
     bkg2_default, binned_x = smooth_array(bkg2_sum_default)
-
-    return binned_x, bkg1_default, bkg2_default, bkg1_custom, bkg2_custom, bkg1_lo, \
-        bkg2_lo, bkg1_hi, bkg2_hi
+    
+    af = asdf.open(superdark_custom)
+    pha_str = f"pha{PHA_INCL_EXCL[0]}-{PHA_INCL_EXCL[1]}"
+    dark_im = af.tree[pha_str]
+    dark_im_flt = dark_im / af.tree["total_exptime"]
+    binning = get_binning_pars(af)
+    dark_x = np.arange(binning["xstart"], binning["xend"], binning["bin_x"])
+    #dark_y = np.arange(binning["ystart"], binning["yend"]+binning["bin_y"], binning["bin_y"])
+    xs = np.zeros(16384)
+    _, bkg1_y0_bin0 = bin_coords(xs, bkg1_y0, binning["bin_x"], binning["bin_y"], binning["xstart"], binning["ystart"])
+    _, bkg1_y1_bin0 = bin_coords(xs, bkg1_y1, binning["bin_x"], binning["bin_y"], binning["xstart"], binning["ystart"])
+    _, bkg2_y0_bin0 = bin_coords(xs, bkg2_y0, binning["bin_x"], binning["bin_y"], binning["xstart"], binning["ystart"])
+    _, bkg2_y1_bin0 = bin_coords(xs, bkg2_y1, binning["bin_x"], binning["bin_y"], binning["xstart"], binning["ystart"])
+#    ys = np.array([bkg1_y0, bkg1_y1, bkg2_y0, bkg2_y1])
+#    xsnew, ysnew = bin_coords(xs, ys, binning["bin_x"], binning["bin_y"], binning["xstart", binning["ystart"])
+#    bkg1_y0_bin0, bkg1_y1_bin0, bkg2_y0_bin0, bkg2_y1_bin0 = ysnew
+    bkg1_y0_bin = list(itertools.islice(bkg1_y0_bin0, binning["xstart"], binning["xend"], binning["bin_x"]))
+    bkg1_y1_bin = list(itertools.islice(bkg1_y1_bin0, binning["xstart"], binning["xend"], binning["bin_x"]))
+    bkg2_y0_bin = list(itertools.islice(bkg2_y0_bin0, binning["xstart"], binning["xend"], binning["bin_x"]))
+    bkg2_y1_bin = list(itertools.islice(bkg2_y1_bin0, binning["xstart"], binning["xend"], binning["bin_x"]))
+    bkg1_dark = sum_bkg_region(dark_im_flt, bkg1_y0_bin, bkg1_y1_bin)
+    bkg2_dark = sum_bkg_region(dark_im_flt, bkg2_y0_bin, bkg2_y1_bin)
+    
+    return binned_x, bkg1_default, bkg2_default, bkg1_custom, bkg2_custom, \
+        bkg1_lo, bkg2_lo, bkg1_hi, bkg2_hi, bkg1_dark, bkg2_dark, dark_x
     #return np.arange(16384), bkg1_sum_default, bkg2_sum_default, bkg1_sum_custom, bkg2_sum_custom, bkg1_sum_lo, bkg2_sum_lo, bkg1_sum_hi, bkg2_sum_hi
 
 
 def plot_data(x, bkg1_default, bkg2_default, bkg1_custom, bkg2_custom, bkg1_lo, 
-              bkg2_lo, bkg1_hi, bkg2_hi):
+              bkg2_lo, bkg1_hi, bkg2_hi, bkg1_dark, bkg2_dark, dark_x, targname):
     fig, axes0 = plt.subplots(3, 1, figsize=(8.5, 11))
     axes = axes0.flatten()
     
-    bkg1 = {"default": bkg1_default, "custom": bkg1_custom, "lo": bkg1_lo, "hi": bkg1_hi}
-    bkg2 = {"default": bkg2_default, "custom": bkg2_custom, "lo": bkg2_lo, "hi": bkg2_hi}
+    bkg1 = {"default": bkg1_default, "custom": bkg1_custom, "lo": bkg1_lo, "hi": bkg1_hi, "superdark": bkg1_dark}
+    bkg2 = {"default": bkg2_default, "custom": bkg2_custom, "lo": bkg2_lo, "hi": bkg2_hi, "superdark": bkg2_dark}
     av = {"default": (bkg1_default + bkg2_default) / 2.,
           "custom": (bkg1_custom + bkg2_custom) / 2.,
           "lo": (bkg1_lo + bkg2_lo) / 2.,
-          "hi": (bkg1_hi + bkg2_hi) / 2.}
+          "hi": (bkg1_hi + bkg2_hi) / 2.,
+          "superdark": (bkg1_dark + bkg2_dark) / 2.}
     dicts = [bkg1, bkg2, av]
 
     titles = ["Background 1 (Lower)", "Background 2 (Upper)", "Average"]
     for i in range(3):
         ax = axes[i]
         d = dicts[i]
-        ax.plot(x, d["default"], COLORS[0], alpha=0.8, label="Default")
-        ax.plot(x, d["custom"],  COLORS[1], alpha=0.8, label="Custom")
-        ax.plot(x, d["lo"],      COLORS[2], alpha=0.8, label="Lo Dark")
-        ax.plot(x, d["hi"],      COLORS[3], alpha=0.8, label="Hi Dark")
+        ax.set_ylabel("Counts/s")
+        ax.plot(x, d["default"],   COLORS[0], alpha=0.8, label="Default FLT")
+        ax.plot(x, d["custom"],    COLORS[1], alpha=0.8, label="Custom FLT")
+        ax.plot(x, d["lo"],        COLORS[2], alpha=0.8, label="Lo Dark")
+        ax.plot(x, d["hi"],        COLORS[3], alpha=0.8, label="Hi Dark")
+        ax.plot(dark_x, d["superdark"], COLORS[4], alpha=0.8, label="Custom Dark")
         ax.set_ylim(-.0001, 0.00035)
         ax.set_title(titles[i])
         ax.legend()
-    fig.savefig("test.png")
+    figname = f"{targname}_flt_comp.png"
+    fig.savefig(figname)
+    print(f"Wrote {figname}")
 
 
-def compare_backgrounds(flt_default, flt_custom):
-    binned_x, bkg1_default, bkg2_default, bkg1_custom, bkg2_custom, bkg1_lo, bkg2_lo, bkg1_hi, bkg2_hi = get_data(flt_custom, flt_default)
-    plot_data(binned_x, bkg1_default, bkg2_default, bkg1_custom, bkg2_custom, bkg1_lo, bkg2_lo, bkg1_hi, bkg2_hi)
+def compare_backgrounds(flt_default, flt_custom, targname, superdark_custom):
+    binned_x, bkg1_default, bkg2_default, bkg1_custom, bkg2_custom, bkg1_lo, \
+        bkg2_lo, bkg1_hi, bkg2_hi, bkg1_dark, bkg2_dark, dark_x = get_data(flt_custom, flt_default, superdark_custom)
+    plot_data(binned_x, bkg1_default, bkg2_default, bkg1_custom, bkg2_custom, \
+        bkg1_lo, bkg2_lo, bkg1_hi, bkg2_hi, bkg1_dark, bkg2_dark, dark_x, targname)
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
@@ -169,6 +201,10 @@ if __name__ == "__main__":
                         help="Name of default CalCOS FLT file")
     parser.add_argument("-c", "--custom",
                         help="Name of custom-corrected FLT file")
+    parser.add_argument("-t", "--targname",
+                        help="Name of target")
+    parser.add_argument("-s", "--superdark_custom",
+                        help="Name of combined superdark from ACDC")
     args = parser.parse_args()
-    compare_backgrounds(args.default, args.custom)
+    compare_backgrounds(args.default, args.custom, args.targname, args.superdark_custom)
 
