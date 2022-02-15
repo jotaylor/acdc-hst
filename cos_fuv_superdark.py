@@ -24,7 +24,7 @@ from query_cos_dark import files_by_mjd
 class Superdark():
     def __init__(self, hv, segment, mjdstarts, mjdends, dayint=100, bin_x=1,
                  bin_y=1, bin_pha=1, phastart=1, phaend=31, pha_bins=None, 
-                 gsagtab="41g2040ol_gsag.fits", region="inner", outfile=None,
+                 gsagtab="/astro/sveash/cos_dark/41g2040ol_gsag.fits", region="inner", outfile=None,
                  outdir=".", xylimits=None):
         """
         To keep things consistent, start and stop range are defined the same
@@ -176,9 +176,9 @@ class Superdark():
         print("   Binning done")
         for grp in out:
             dct = grp[0]
-            total_exptime += grp[1]
             key = list(dct.keys())[0]
             self.pha_images[key] = dct[key]
+        total_exptime += out[0][1]
 
         # Undo 99999 put in for gainsag holes
         for i in range(len(self.pha_bins)-1):
@@ -313,9 +313,13 @@ class Superdark():
             self.pha_bins = np.array(pha_bins)
             self.get_pha_bins()
             self.superdarks = superdarks
+       
+        if outfile is None: 
+            nowdt = datetime.datetime.now()
+            now = nowdt.strftime("%d%b%Y")
+            outfile = self.outfile.replace(".asdf", f"binned_{now}.asdf")
+        self.outfile = outfile
         
-        if outfile is not None:
-            self.outfile = outfile
         sh = np.shape(self.superdarks[0])
         xdim = sh[1]
         ydim = sh[0]
@@ -375,8 +379,6 @@ class Superdark():
         pdf.close()
         print(f"Wrote {pdffile}")
 
-        if outfile is None:
-            self.outfile = "binned_" + self.outfile
         self.write_superdark(self.pha_images)
 
     def screen_counts(self, verbose=True):
