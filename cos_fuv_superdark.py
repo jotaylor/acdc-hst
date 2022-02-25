@@ -24,7 +24,7 @@ from query_cos_dark import files_by_mjd
 class Superdark():
     def __init__(self, hv, segment, mjdstarts, mjdends, dayint=100, bin_x=1,
                  bin_y=1, bin_pha=1, phastart=1, phaend=31, pha_bins=None, 
-                 gsagtab="41g2040ol_gsag.fits", region="inner", outfile=None,
+                 gsagtab="/astro/sveash/cos_dark/41g2040ol_gsag.fits", region="inner", outfile=None,
                  outdir=".", xylimits=None):
         """
         To keep things consistent, start and stop range are defined the same
@@ -176,9 +176,9 @@ class Superdark():
         print("   Binning done")
         for grp in out:
             dct = grp[0]
-            total_exptime += grp[1]
             key = list(dct.keys())[0]
             self.pha_images[key] = dct[key]
+        total_exptime += out[0][1]
 
         # Undo 99999 put in for gainsag holes
         for i in range(len(self.pha_bins)-1):
@@ -295,7 +295,7 @@ class Superdark():
         return final_image
 
     
-    def bin_superdark(self, bin_x, bin_y, pha_bins=None, outfile=None):
+    def bin_superdark(self, bin_x, bin_y, pha_bins=None, outfile=None, verbose=True):
         
         # Bin across PHA
         self.pha_images = {}
@@ -313,9 +313,13 @@ class Superdark():
             self.pha_bins = np.array(pha_bins)
             self.get_pha_bins()
             self.superdarks = superdarks
+       
+        if outfile is None: 
+            nowdt = datetime.datetime.now()
+            now = nowdt.strftime("%d%b%Y")
+            outfile = self.outfile.replace(".asdf", f"binned_{now}.asdf")
+        self.outfile = outfile
         
-        if outfile is not None:
-            self.outfile = outfile
         sh = np.shape(self.superdarks[0])
         xdim = sh[1]
         ydim = sh[0]
@@ -345,17 +349,19 @@ class Superdark():
             key = f"pha{phastart}-{phaend}"
             self.pha_images[key] = binned
             rate = binned/self.total_exptime
-            print(f"For PHAs {phastart} through {phaend}")
-            print(f"Binning by X={self.bin_x}, Y={self.bin_y}")
-            print(f"\tTotal number of events: {np.sum(binned):,}")
-            print(f"\tTotal exptime of superdark: {self.total_exptime:,}")
-            print(f"\tMinimum number of events in a binned pixel: {np.min(binned)}")
-            print(f"\tMean number of events per binned pixel: {np.mean(binned):.1f}")
-            print(f"\t  Standard deviation: {np.std(binned):.1f}")
-            print(f"\tMedian number of events per binned pixel: {np.median(binned):.1f}")
-            print(f"\tMean countrate per binned pixel: {np.mean(rate):.2e}")
-            print(f"\t  Standard deviation: {np.std(rate):.2e}")
-            print(f"\tMedian countrate per binned pixel: {np.median(rate):.2e}")
+            if verbose is True:
+                print(f"For PHAs {phastart} through {phaend}")
+                print(f"Binning by X={self.bin_x}, Y={self.bin_y}")
+                print(f"\tTotal number of events: {np.sum(binned):,}")
+                print(f"\tTotal exptime of superdark: {self.total_exptime:,}")
+                print(f"\tMinimum number of events in a binned pixel: {np.min(binned)}")
+                print(f"\tMaximum number of events in a binned pixel: {np.max(binned)}")
+                print(f"\tMean number of events per binned pixel: {np.mean(binned):.1f}")
+                print(f"\t  Standard deviation: {np.std(binned):.1f}")
+                print(f"\tMedian number of events per binned pixel: {np.median(binned):.1f}")
+                print(f"\tMean countrate per binned pixel: {np.mean(rate):.2e}")
+                print(f"\t  Standard deviation: {np.std(rate):.2e}")
+                print(f"\tMedian countrate per binned pixel: {np.median(rate):.2e}")
             fig, ax = plt.subplots(figsize=(20,5))
             #vmin = np.mean(rate) - 3*np.std(rate)
             vmin = np.median(rate) - np.median(rate)*0.5
@@ -373,6 +379,23 @@ class Superdark():
         pdf.close()
         print(f"Wrote {pdffile}")
 
-        if outfile is None:
-            self.outfile = "binned_" + self.outfile
         self.write_superdark(self.pha_images)
+
+    def screen_counts(self, verbose=True):
+        for i,sd in enumerate(self.superdarks):
+            phastart = self.pha_bins[i]
+            phaend = self.pha_bins[i+1]
+            key = f"pha{phastart}-{phaend}"
+            avg = np.mean(sd)
+            std = np.std(sd)
+            sigma10 = (std*10)
+            bad = np.where(sd > (avg+sigma10))
+            if len(bad[0]) == 0:
+                continue
+            if verbose is True:
+                print(f"{len(bad[0])} pixels have counts above 10sigma, zeroing out now...")
+            sd[bad] = 0.0
+            self.superdarks[i] = sd
+            self.pha_images[key] = sd
+
+

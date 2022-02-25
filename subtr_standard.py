@@ -1,3 +1,12 @@
+"""
+Perform a custom dark subtraction on COS science data.
+
+Command-line arguments:
+-d or --datadir
+    Path which contains corrtags and output from predict_dark_level1.py
+-o or --outdir
+    Path to write output products.
+"""
 import argparse
 import copy
 import asdf
@@ -9,15 +18,22 @@ import os
 
 from predict_dark_level1 import bin_science, get_binning_pars
 
-def main(corrtags, pred_noise_file, fact=2, outdir="."):
+RESEL = [6, 10]
+PHA_INCLUSIVE = [2, 23]
+PHA_INCL_EXCL = [2, 24]
+
+def subtract_dark(corrtags, datadir, fact=1, outdir="."):
 # fact changes resolution, 1=highest resolution, 8=lowest resolution. to keep at same input res., use 1
-    pred_noise_af = asdf.open(pred_noise_file)
-    pred_noise = pred_noise_af["3-29"]
-    b = get_binning_pars(pred_noise_af)
     for item in corrtags:
+        rootname = fits.getval(item, "rootname")
+        pred_noise_file = os.path.join(datadir, rootname+"_noise_complete.asdf")
+        pred_noise_af = asdf.open(pred_noise_file)
+        pha_str = f"pha{PHA_INCL_EXCL[0]}-{PHA_INCL_EXCL[1]}"
+        pred_noise = pred_noise_af[pha_str]
+        b = get_binning_pars(pred_noise_af)
         binned, nevents = bin_science(item, b, fact)
         
-        hdulist = fits.open(item, mode="update")
+        hdulist = fits.open(item)
         data = hdulist[1].data
         
         xstart = b["xstart"]
@@ -94,7 +110,17 @@ def main(corrtags, pred_noise_file, fact=2, outdir="."):
         
         inds = np.where(logic < 1)
         if len(logic[inds]) != 0:
-            new_events = copy.deepcopy(data[len(data) - len(inds[0]):])
+            if len(logic[inds]) >  len(data):
+                #num = int(np.ceil(len(logic[inds]) / len(data)))
+                #tmp = [data]*num
+                #longerdata = np.concatenate(tmp)
+                longerhdu = fits.BinTableHDU.from_columns(hdulist[1].columns, nrows=len(logic[inds]))
+                for colname in hdulist[1].columns.names:
+                    longercol = np.resize(data[colname], len(logic[inds]))
+                    longerhdu.data[colname][:] = longercol
+                new_events = longerhdu.data
+            else:
+                new_events = copy.deepcopy(data[len(data) - len(inds[0]):])
             for i in range(len(inds[0])):
                 y = b["bin_y"] * inds[0][i] + b["ystart"] 
                 x = b["bin_x"] * inds[1][i] + b["xstart"]
@@ -111,21 +137,21 @@ def main(corrtags, pred_noise_file, fact=2, outdir="."):
             data = np.concatenate([data, new_events])
         hdulist[1].data = data
         outfile = os.path.join(outdir, f"corrected_{os.path.basename(item)}")
+        if not os.path.exists(outdir):
+            os.makedirs(outdir)
         hdulist.writeto(outfile, overwrite=True)
         print(f"Wrote {outfile}")
 
-    pred_noise_af.close() 
+        pred_noise_af.close() 
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
     parser.add_argument("-d", "--datadir",
                         help="Path to science corrtags")
-    parser.add_argument("-n", "--noise",
-                        help="Predicted noise level file")
     parser.add_argument("-o", "--outdir", default=".",
                         help="Output directory")
     args = parser.parse_args()
     corrtags = glob.glob(os.path.join(args.datadir, "*corrtag*fits"))
 
-    main(corrtags, args.noise, outdir=args.outdir)
+    subtract_dark(corrtags, args.datadir, outdir=args.outdir)
 
