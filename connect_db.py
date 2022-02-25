@@ -1,10 +1,11 @@
 import os
+import yaml
 import getpass
 from sqlalchemy.pool import NullPool
 from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker
 
-def load_connection(dbsettings, echo=False):
+def load_connection(dbname, echo=False):
     """
     Return session, base, and engine objects for connecting to the database.
 
@@ -21,6 +22,11 @@ def load_connection(dbsettings, echo=False):
         engine (:obj:`engine` object): Provides a source of database 
             connectivity and behavior.
     """
+
+    with open("settings.yaml", "r") as f:
+        settings = yaml.load(f, Loader=yaml.SafeLoader)
+        dbsettings = settings["dbsettings"][dbname]
+
     if dbsettings["dbtype"] == "sqlite":
         connection_string = f"sqlite:///{dbsettings['loc']}"
     elif dbsettings["dbtype"] == "mysql":
