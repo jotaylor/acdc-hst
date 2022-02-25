@@ -33,7 +33,7 @@ def subtract_dark(corrtags, datadir, fact=1, outdir="."):
         b = get_binning_pars(pred_noise_af)
         binned, nevents = bin_science(item, b, fact)
         
-        hdulist = fits.open(item, mode="update")
+        hdulist = fits.open(item)
         data = hdulist[1].data
         
         xstart = b["xstart"]
