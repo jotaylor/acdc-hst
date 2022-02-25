@@ -7,9 +7,10 @@ background subtraction. In order to achieve the maximum scientific value of
 the COS instrument, we have a designed a custom characterization and correction
 of the COS FUV dark rate.
 
-To measure the dark rate as a function of time and position, a complete
-database with observation information is necessary. This code creates
-and updates this database, `cos_dark.db`.
+This package creates and maintains databases needed to measure the
+dark rate as a function of time, position, and PHA. It also creates
+FUV superdarks and uses them to perform custom dark corrections to 
+COS FUV data.
 
 ## Installation
 If you do not already have Conda installed, you need to download and install
@@ -20,9 +21,9 @@ many other tools, libraries, and utilities.
 * get [Anaconda](https://www.anaconda.com/products/individual)
 
 Now clone this repository on your local machine. Do this by typing:
-`git clone git@github.com:spacetelescope/jwst.git`
+`git clone git@github.com:spacetelescope/cos_dark.git`
 for SSH connection, or:
-`git clone https://github.com/spacetelescope/jwst.git`
+`git clone https://github.com/spacetelescope/cos_dark.git`
 for HTTPS connection.
 
 ### Installing into a fresh environment
@@ -48,10 +49,17 @@ Go to the cloned directory and from a bash shell enter:
 pip install -e . 
 ```
 
-## Using the Database
+## COS Dark Databases
+Currently, two databases are maintained in order to characterize the 
+FUV dark rate. One is a SQLite database called `cos_dark.db`- this database
+tracks the dark counts over binned regions of the FUV detectors. 
+The other is a MySQL database called `hstcal`, hosted on the
+STScI internal server `PLTANMYSQL`. 
+
+## The SQLite Database, `cos_dark`
 
 If you are within the STScI network you can create a local version
-of the the database like so:
+of the the SQLite database like so:
 
 ```
 python create_db.py
@@ -73,9 +81,9 @@ and start exploring! For tips on SQLite queries, click [here](https://www.tutori
 Interactive plots of dark counts vs. time are available in the 
 `plot_dark_vs_time.ipynb` jupyter notebook.
 
-## Database Format
+### SQLite Database Format
 
-The format of the database is as follows:
+The format of the `cos_darks` SQLite database is as follows:
 
 **Darks**
 | column       | type    | description                                            |
@@ -105,3 +113,31 @@ The format of the database is as follows:
 | flux   | Float | 10.7cm radio flux                  |
 
 Solar flux values are obtained from [NOAA](https://www.swpc.noaa.gov/phenomena/f107-cm-radio-emissions).
+
+## The MySQL database, `hstcal`
+
+### MySQL Database Format
+
+The format of the `hstcal` MySQL database is as follows. 
+There is a table for each HV setting, which includes:
+* 163
+* 167
+* 169
+* 171
+* 173
+* 178
+* other
+
+**darkeventshv\<hvsetting>**
+
+| column       | type    | description                                            |
+| ------------ | ------- | ------------------------------------------------------ |
+| id           | Integer | Primary key ID number                                  |
+| xcorr        | Float  | XCORR location of dark event                            |
+| ycorr        | Float  | YCORR location of dark event                            |
+| pha          | int   | PHA value of dark event                                  |
+| mjd          | Float(11,5)   | MJD time of dark event                           |
+| hv           | Integer | High Voltage of corresponding dark exposure            |
+| segment      | String(5)   | Segment of corresponding dark exposure             |
+| filename     | String(30)   | Filename of corresponding dark exposure           |
+| proposid     | Integer  | Proposal ID of corresponding dark exposure            |
