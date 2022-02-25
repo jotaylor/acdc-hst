@@ -35,6 +35,7 @@ import matplotlib.pyplot as plt
 from make_clean_superdark import bin_corrtag
 from cos_fuv_superdark import Superdark
 from calculate_dark import get_1291_box
+from compare_backgrounds import smooth_array
 
 RESEL = [6, 10]
 PHA_INCLUSIVE = [2, 23]
@@ -201,14 +202,14 @@ def predict_dark(corrtags, lo_darkname, hi_darkname, segment=None, hv=None, outd
     dark_hv = lo_af["hv"]
     dark_segment = lo_af["segment"]
     plt.imshow(lo_dark, aspect="auto", origin="lower")
-    plt.title("Quiescent Superdark")
+    plt.title("Quiescent Superdark", size=25)
     figname = os.path.join(outdir, f"{dark_segment}_{dark_hv}_lo_superdark.png")
     plt.savefig(figname, bbox_inches="tight")
     print(f"Saved quiscent superdark figure: {figname}")
     plt.clf()
     plt.imshow(hi_dark, aspect="auto", origin="lower")
     figname = os.path.join(outdir, f"{dark_segment}_{dark_hv}_hi_superdark.png")
-    plt.title("Active Superdark") 
+    plt.title("Active Superdark", size=25)
     plt.savefig(figname, bbox_inches="tight")
     print(f"Saved active superdark figure:{figname}")
     plt.clf()
@@ -236,21 +237,23 @@ def predict_dark(corrtags, lo_darkname, hi_darkname, segment=None, hv=None, outd
         sh = np.shape(binned_sci)
         im = ax.imshow(binned_sci, aspect="auto", origin="lower", 
                 vmin=vmin, vmax=vmax, extent=[0, sh[1], 0, sh[0]])
-        ax.axhline(apertures["PSA"][0], color=COLORS[0], label="PSA")
-        ax.axhline(apertures["PSA"][-1]+1, color=COLORS[0])
-        ax.axhline(apertures["WCA"][0], color=COLORS[1], label="WCA")
-        ax.axhline(apertures["WCA"][-1]+1, color=COLORS[1])
+        ax.axhline(apertures["PSA"][0], lw=2, color=COLORS[3], label="PSA")
+        ax.axhline(apertures["PSA"][-1]+1, lw=2, color=COLORS[3])
+        ax.axhline(apertures["WCA"][0], lw=2, ls="dashed", color=COLORS[3], label="WCA")
+        ax.axhline(apertures["WCA"][-1]+1, lw=2, ls="dashed", color=COLORS[3])
         ax.legend(loc="upper right")
         fig.colorbar(im, label="Counts")
         figname = os.path.join(outdir, f"{rootname}_{segment}_binned_sci.png")
-        fig.suptitle(f"{rootname} Binned Science Image", size=25)
+        ax.set_title(f"{rootname} Binned Science Image", size=25)
         fig.savefig(figname, bbox_inches="tight")
         print(f"Saved binned science image: {figname}")
         plt.clf()
         sci_exp = fits.getval(item, "exptime", 1)
+        lo_exptime = lo_af["total_exptime"]
+        hi_exptime = hi_af["total_exptime"]
         # Initial guess is 0.5 contribution for each superdark
-        lo_coeff = 0.5 / (lo_af["total_exptime"] / sci_exp)
-        hi_coeff = 0.5 / (hi_af["total_exptime"] / sci_exp)
+        lo_coeff = 0.5 / (lo_exptime / sci_exp)
+        hi_coeff = 0.5 / (hi_exptime / sci_exp)
         combined_dark = linear_combination([lo_dark, hi_dark], [lo_coeff, hi_coeff])
 # this is science extraction regions (use xtractab) for sci exp. LP
 # also exclude wavecals
@@ -261,7 +264,7 @@ def predict_dark(corrtags, lo_darkname, hi_darkname, segment=None, hv=None, outd
         for i in range(binned_sci.shape[0]):
             if i not in excluded_rows:
                 plt.plot(binned_sci[i], label=f"Row={i}", color=COLORS[i], alpha=0.8)
-        plt.title(f"{rootname}- all rows that are not in PSA/WCA")
+        plt.title(f"{rootname}- all rows that are not in PSA/WCA", size=25)
         plt.ylim(-0.5, 4)
         plt.legend(loc="upper right")
         figname = os.path.join(outdir, f"{rootname}_{segment}_rows.png")
@@ -277,11 +280,16 @@ def predict_dark(corrtags, lo_darkname, hi_darkname, segment=None, hv=None, outd
 #        x0 = [lo_coeff, hi_coeff]
         res = minimize(fun_opt, x0, method="Nelder-Mead", tol=1e-6, 
                        args=([lo_dark, hi_dark], binned_sci, excluded_rows),
-                       bounds=[(1.e-8, None), (1.e-8, None)], options={'maxiter': 1000})
+                       #bounds=[(1.e-8, None), (1.e-8, None)], options={'maxiter': 1000})
+                       bounds=[(1.e-10, None), (1.e-10, None)], options={'maxiter': 1000})
         combined_dark1 = linear_combination([lo_dark, hi_dark], res.x)
-        plt.imshow(combined_dark1, aspect="auto", origin="lower")
+        print("!!!!")
+        print(res.x, lo_af["total_exptime"], hi_af["total_exptime"], sci_exp) 
+        sh = np.shape(combined_dark1)
+        plt.imshow(combined_dark1, aspect="auto", origin="lower",
+                   extent=[0, sh[1], 0, sh[0]])
         plt.colorbar(label="Counts/s")
-        plt.title(f"{rootname} Combined Superdark")
+        plt.title(f"{rootname} Combined Superdark", size=25)
         figname = os.path.join(outdir, f"{rootname}_{segment}_combined_dark.png")
         plt.savefig(figname, bbox_inches="tight")
         print(f"Saved combined dark image: {figname}")
@@ -295,37 +303,45 @@ def predict_dark(corrtags, lo_darkname, hi_darkname, segment=None, hv=None, outd
         for i in range(len(bkg_rows)):
             row = bkg_rows[i]
             ax = axes[i]
-            ax.plot(binned_sci[row], color=COLORS[0], 
-                    label=f"Bkgd row", alpha=0.8)
-            ax.plot(combined_dark1[row], color=COLORS[1], 
+            smoothy, smoothx = smooth_array(binned_sci[row], 25)
+            avg = np.average(binned_sci[row])
+            ax.plot(binned_sci[row], color="lightgrey", 
+                    label=f"Sci row", alpha=0.8)
+            ax.plot(combined_dark1[row], color=COLORS[0], 
                     label=f"Predicted Bkgd", alpha=0.8)
-            ax.set_title(f"Row = {row}")
+            ax.plot(smoothx, smoothy, color=COLORS[1], label="Smoothed Sci", alpha=0.8)
+#            ax.axhline(avg, lw=2, color=COLORS[2], label=f"Avg Bkgd={avg:.1f}")
+            ax.set_title(f"Row = {row}", size=15)
             ax.set_xlabel("X")
-            ax.set_ylabel("Number of photons")
+            ax.set_ylabel("Counts")
             ax.legend(loc="upper right")
-        fig.suptitle("Predicted vs. Actual Dark across non PSA/WCA rows")
+        fig.suptitle("Predicted vs. Actual Dark across non PSA/WCA rows", size=25)
         figname = os.path.join(outdir, f"{rootname}_{segment}_predicted_dark_bkgd.png")
         plt.savefig(figname, bbox_inches="tight")
         print(f"Saved actual vs predicted darks: {figname}")
         plt.clf()
         
         # Use just one row outside of extraction regions
-        ncols = 2
+        ncols = 1
         nrows = int(np.ceil(len(apertures["PSA"])/ncols))
         fig, axes0 = plt.subplots(nrows, ncols, figsize=(25,15))
         axes = axes0.flatten()
         for i in range(len(apertures["PSA"])):
             row = apertures["PSA"][i]
             ax = axes[i]
-            ax.plot(binned_sci[row], label=f"Binned sci", color=COLORS[0], alpha=0.8)
-            ax.plot(combined_dark1[row], label=f"Predicted dark", color=COLORS[1], alpha=0.8)
-            ax.set_title(f"Row = {row}")
+            smoothy, smoothx = smooth_array(binned_sci[row], 25)
+            avg = np.average(binned_sci[row])
+            ax.plot(binned_sci[row], label="Sci row", color="lightgrey", alpha=0.8)
+            ax.plot(combined_dark1[row], label=f"Predicted dark", color=COLORS[0], alpha=0.8)
+            ax.plot(smoothx, smoothy, color=COLORS[1], label="Smoothed Sci", alpha=0.8)
+#            ax.axhline(avg, lw=2, color=COLORS[2], label=f"Avg Sci={avg:.1f}")
+            ax.set_title(f"Row = {row}", size=15)
             ax.set_xlabel("X")
-            ax.set_ylabel("Number of photons")
+            ax.set_ylabel("Counts")
             ax.legend(loc="upper right")
             ax.set_ylim(bottom=-1)
         figname = os.path.join(outdir, f"{rootname}_{segment}_predicted_dark_sci.png")
-        fig.suptitle(f"{rootname}: Predicted dark and actual science across PSA rows")
+        fig.suptitle(f"{rootname}: Predicted dark and actual science across PSA rows", size=25)
         plt.savefig(figname, bbox_inches="tight")
         print(f"Saved predicted dark vs science: {figname}")
         plt.clf()
@@ -347,6 +363,8 @@ def predict_dark(corrtags, lo_darkname, hi_darkname, segment=None, hv=None, outd
 
         noise_comp = copy.deepcopy(lo_af.tree)
         noise_comp[pha_str] = combined_dark1
+        #combined_exptime = (lo_exptime * res.x[0]) + (hi_exptime * res.x[1])
+        noise_comp["total_exptime"] = sci_exp
         outfile = os.path.join(outdir, f"{rootname}_noise_complete.asdf")
         noise_comp_af = asdf.AsdfFile(noise_comp)
         noise_comp_af.write_to(outfile)
