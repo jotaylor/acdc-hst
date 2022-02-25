@@ -283,8 +283,8 @@ def predict_dark(corrtags, lo_darkname, hi_darkname, segment=None, hv=None, outd
                        #bounds=[(1.e-8, None), (1.e-8, None)], options={'maxiter': 1000})
                        bounds=[(1.e-10, None), (1.e-10, None)], options={'maxiter': 1000})
         combined_dark1 = linear_combination([lo_dark, hi_dark], res.x)
-        print("!!!!")
-        print(res.x, lo_af["total_exptime"], hi_af["total_exptime"], sci_exp) 
+        #print("!!!!")
+        #print(res.x, lo_af["total_exptime"], hi_af["total_exptime"], sci_exp) 
         sh = np.shape(combined_dark1)
         plt.imshow(combined_dark1, aspect="auto", origin="lower",
                    extent=[0, sh[1], 0, sh[0]])
