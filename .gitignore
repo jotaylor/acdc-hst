@@ -1,9 +1,20 @@
+# Build directories
 __pycache__/
-.ipynb_checkpoints/
 cos_dark.egg-info/
+dist/
+build/
+
+# Jupyter
+.ipynb_checkpoints/
+
+# Data directories
 superdarks/
-*.p
+output/
+low_sn_data/
 old/
+
+# Specific filetypes
+*.p
 *.asdf
 *.pdf
 *.npy
