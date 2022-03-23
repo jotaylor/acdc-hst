@@ -24,7 +24,9 @@ from query_cos_dark import files_by_mjd
 class Superdark():
     def __init__(self, hv, segment, mjdstarts, mjdends, dayint=100, bin_x=1,
                  bin_y=1, bin_pha=1, phastart=1, phaend=31, pha_bins=None, 
-                 gsagtab="/astro/sveash/cos_dark/41g2040ol_gsag.fits", region="inner", outfile=None,
+                 gsagtab="/astro/sveash/cos_dark/5b919208l_gsag.fits",
+                 bpixtab="/astro/sveash/cos_dark/5b91920bl_bpix.fits", 
+                 region="inner", outfile=None,
                  outdir=".", xylimits=None):
         """
         To keep things consistent, start and stop range are defined the same
@@ -52,6 +54,7 @@ class Superdark():
 
         self.superdarks = []
         self.gsagtab = gsagtab
+        self.bpixtab = bpixtab
         self.outfile = outfile
         self.outdir = outdir
 
@@ -59,6 +62,7 @@ class Superdark():
             self.get_xy_limits()
 
         self.get_gsag_holes()
+#        self.get_bpix_regions()
 
 
     @classmethod
@@ -131,10 +135,13 @@ class Superdark():
                 
             total_exptime = sum([fits.getval(x, "exptime", 1) for x in darks])
             gsag_df = self.gsag_holes.loc[(self.gsag_holes["DATE"] > self.mjdstarts[0]) & (self.gsag_holes["DATE"] < self.mjdends[0])]
+#            bpix_df = self.bpix_regions
             print(f"   Binning corrtags, {phastart} <= PHA < {phaend}...")
             sum_image = self.bin_corrtags(darks, phastart=phastart, phaend=phaend)
             for j in range(len(gsag_df)):
                 sum_image[gsag_df.iloc[j]["Y0"]:gsag_df.iloc[j]["Y1"], gsag_df.iloc[j]["X0"]:gsag_df.iloc[j]["X1"]] = 99999
+#            for j in range(len(bpix_df)):
+#                sum_image[bpix_df.iloc[j]["Y0"]:bpix_df.iloc[j]["Y1"], bpix_df.iloc[j]["X0"]:bpix_df.iloc[j]["X1"]] = 99999
             tmp = sum_image.reshape(1024 // self.bin_y, self.bin_y,
                                     16384 // self.bin_x, self.bin_x)
             binned = tmp.sum(axis=3).sum(axis=1)
@@ -183,8 +190,11 @@ class Superdark():
         # Undo 99999 put in for gainsag holes
         for i in range(len(self.pha_bins)-1):
             key = f"pha{self.pha_bins[i]}-{self.pha_bins[i+1]}"
-            inds = np.where(self.pha_images[key] % 99999 == 0)
+            inds = np.where(self.pha_images[key] >= 99999)
+            print(f"Zeroing out {len(inds[0])} gain sagged pixels for {key}")
             self.pha_images[key][inds] = 0
+            inds = np.where(self.pha_images[key] >= 99999)
+            assert len(inds[0]) == 0, f"Not all gain sag holes were zeroed for {key}"
             self.superdarks.append(self.pha_images[key])
 
         self.total_exptime = total_exptime
@@ -249,6 +259,22 @@ class Superdark():
         gsag_df = gsag_df.astype("int32")
 
         self.gsag_holes = gsag_df
+    
+
+    def get_bpix_regions(self):
+        bpix = Table.read(self.bpixtab, format="fits", hdu=1)
+        bpix_df = bpix.to_pandas()
+        bpix_df = bpix_df.rename(columns={"LX": "X0", "LY": "Y0"})
+        bpix_df["X1"] = bpix_df["X0"] + bpix_df["DX"]
+        bpix_df["Y1"] = bpix_df["Y0"] + bpix_df["DY"]
+        bpix_df["BIN_X0"] = bpix_df["X0"]//self.bin_x
+        bpix_df["BIN_X1"] = bpix_df["X1"]//self.bin_x
+        bpix_df["BIN_Y0"] = bpix_df["Y0"]//self.bin_y
+        bpix_df["BIN_Y1"] = bpix_df["Y1"]//self.bin_y
+        bpix_df = bpix_df.astype("int32")
+
+        self.bpix_regions = bpix_df
+
 
     def bin_corrtags(self, corrtag_list, phastart, phaend, xtype='XCORR', ytype='YCORR', sdqflags=0):
         """Bin one or more corrtag event lists into a 2D image.
@@ -381,19 +407,19 @@ class Superdark():
 
         self.write_superdark(self.pha_images)
 
-    def screen_counts(self, verbose=True):
+    def screen_counts(self, verbose=True, sigma=10):
         for i,sd in enumerate(self.superdarks):
             phastart = self.pha_bins[i]
             phaend = self.pha_bins[i+1]
             key = f"pha{phastart}-{phaend}"
             avg = np.mean(sd)
             std = np.std(sd)
-            sigma10 = (std*10)
-            bad = np.where(sd > (avg+sigma10))
+            sigma_cutoff = (std*sigma)
+            bad = np.where(sd > (avg+sigma_cutoff))
             if len(bad[0]) == 0:
                 continue
             if verbose is True:
-                print(f"{len(bad[0])} pixels have counts above 10sigma, zeroing out now...")
+                print(f"{len(bad[0])} pixels have counts above {sigma}sigma, zeroing out now...")
             sd[bad] = 0.0
             self.superdarks[i] = sd
             self.pha_images[key] = sd
