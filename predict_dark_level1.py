@@ -34,8 +34,9 @@ import matplotlib.pyplot as plt
 
 from make_clean_superdark import bin_corrtag
 from cos_fuv_superdark import Superdark
-from calculate_dark import get_1291_box
+from calculate_dark import get_aperture_region
 from compare_backgrounds import smooth_array
+from utils import bin_coords
 
 RESEL = [6, 10]
 PHA_INCLUSIVE = [2, 23]
@@ -94,7 +95,7 @@ def bin_science(corrtag, b, fact=1):
     """
     data = fits.getdata(corrtag)
     phainds = np.where((data["pha"] >= b["phastart"]) & 
-                       (data["pha"] <= b["phaend"]))
+                       (data["pha"] < b["phaend"]))
     phadata = data[phainds]
     innerinds = np.where((phadata["xcorr"] > b["xstart"]) &
                          (phadata["xcorr"] < b["xend"]) & 
@@ -112,33 +113,10 @@ def bin_science(corrtag, b, fact=1):
         y = int((filtered["ycorr"][i] - b["ystart"]) // b["bin_y"])
         binned[y,x] += filtered["epsilon"][i]
         nevents[y,x] += 1
-
     return binned, nevents
 
 
-def bin_coords(xs, ys, bin_x, bin_y, xstart=0, ystart=0):
-    """
-    Given a list of coordinates in X & Y, transform them into the superdark's
-    binned (and possibly offset) coordinate system.
-    """
-    xsnew = (xs - xstart) // bin_x
-    ysnew = (ys - ystart) // bin_y
-    return xsnew, ysnew
-
-
-def unbin_coords(xs, ys, bin_x, bin_y, xstart=0, ystart=0): 
-    """
-    Given a list of binned coordinates in X & Y, transform them into the the
-    unbinned, native coordinate system.
-    """
-    xsnew0 = (xs*bin_x) + xstart 
-    ysnew0 = (ys*bin_y) + ystart 
-    xsnew1 = xsnew0 + bin_x - 1 
-    ysnew1 = ysnew0 + bin_y - 1 
-    return (xsnew0, xsnew1), (ysnew0, ysnew1) 
-
-
-def get_excluded_rows(segment, lp, binning):
+def get_excluded_rows(segment, cenwave, lp, binning):
     """
     Determine the rows that correspond to the PSA and WCA apertures for a 
     given segment and lifetime position. Return the row indices in the
@@ -148,10 +126,10 @@ def get_excluded_rows(segment, lp, binning):
     excluded_rows = np.array(())
     apertures = {"PSA": None, "WCA": None}
     for aperture in apertures:
-        ap_1291 = get_1291_box(aperture=aperture)
-        box = ap_1291[segment][f"lp{lp}_psa_1291"]
+        aperture_regions = get_aperture_region(cenwave=cenwave, aperture=aperture)
+        box = aperture_regions[segment][f"lp{lp}_{aperture.lower()}_{cenwave}"]
         xmin0, xmax0, ymin0, ymax0 = box
-        xsnew, ysnew = bin_coords(np.array([xmin0, xmax0]), np.array([ymin0, ymax0]), binning["bin_x"], binning["bin_y"], binning["xstart"], binning["ystart"])
+        xsnew, ysnew = bin_coords(np.array([xmin0, xmax0]), np.array([ymin0, ymax0]), binning["bin_x"], binning["bin_y"], binning["xstart"], binning["ystart"], make_int=True)
         ap_xmin, ap_xmax = xsnew
         ap_ymin, ap_ymax = ysnew
         rows = np.arange(ap_ymin, ap_ymax+1)
@@ -201,18 +179,20 @@ def predict_dark(corrtags, lo_darkname, hi_darkname, segment=None, hv=None, outd
 #    hi_dark = hi_dark[:, :288]
     dark_hv = lo_af["hv"]
     dark_segment = lo_af["segment"]
-    plt.imshow(lo_dark, aspect="auto", origin="lower")
-    plt.title("Quiescent Superdark", size=25)
+    fig,ax = plt.subplots(1, 1, figsize=(20,8))
+    im = ax.imshow(lo_dark, aspect="auto", origin="lower")
+    fig.colorbar(im, label="Counts")
+    ax.set_title(f"{dark_segment} {dark_hv} quiescent superdark", size=25)
     figname = os.path.join(outdir, f"{dark_segment}_{dark_hv}_lo_superdark.png")
-    plt.savefig(figname, bbox_inches="tight")
+    fig.savefig(figname, bbox_inches="tight")
     print(f"Saved quiscent superdark figure: {figname}")
-    plt.clf()
-    plt.imshow(hi_dark, aspect="auto", origin="lower")
+    fig,ax = plt.subplots(1, 1, figsize=(20,8))
+    im = ax.imshow(hi_dark, aspect="auto", origin="lower")
+    fig.colorbar(im, label="Counts")
+    ax.set_title(f"{dark_segment} {dark_hv} active superdark", size=25)
     figname = os.path.join(outdir, f"{dark_segment}_{dark_hv}_hi_superdark.png")
-    plt.title("Active Superdark", size=25)
-    plt.savefig(figname, bbox_inches="tight")
+    fig.savefig(figname, bbox_inches="tight")
     print(f"Saved active superdark figure:{figname}")
-    plt.clf()
     for item in corrtags:
         if segment is not None:
             file_segment = fits.getval(item, "segment")
@@ -224,9 +204,10 @@ def predict_dark(corrtags, lo_darkname, hi_darkname, segment=None, hv=None, outd
         else:
             segment = fits.getval(item, "segment") 
 
+        cenwave = fits.getval(item, "cenwave")
         fig, ax = plt.subplots(1, 1, figsize=(20, 8))
         lp = fits.getval(item, "life_adj")
-        excluded_rows, apertures = get_excluded_rows(segment, lp, binning)
+        excluded_rows, apertures = get_excluded_rows(segment, cenwave, lp, binning)
         rootname0 = fits.getval(item, "rootname")
         rootname = rootname0.lower()
         binned_sci, nevents = bin_science(item, binning)
@@ -283,8 +264,8 @@ def predict_dark(corrtags, lo_darkname, hi_darkname, segment=None, hv=None, outd
                        #bounds=[(1.e-8, None), (1.e-8, None)], options={'maxiter': 1000})
                        bounds=[(1.e-10, None), (1.e-10, None)], options={'maxiter': 1000})
         combined_dark1 = linear_combination([lo_dark, hi_dark], res.x)
-        #print("!!!!")
-        #print(res.x, lo_af["total_exptime"], hi_af["total_exptime"], sci_exp) 
+        print("!!!!")
+        print(res.x, lo_af["total_exptime"], hi_af["total_exptime"], sci_exp) 
         sh = np.shape(combined_dark1)
         plt.imshow(combined_dark1, aspect="auto", origin="lower",
                    extent=[0, sh[1], 0, sh[0]])
@@ -349,6 +330,7 @@ def predict_dark(corrtags, lo_darkname, hi_darkname, segment=None, hv=None, outd
 #       These two files below are used for sanity checks
         noise = copy.deepcopy(lo_af.tree)
         noise[pha_str] = combined_dark1[apertures["PSA"]]
+        noise["scaling"] = res.x
         outfile = os.path.join(outdir, f"{rootname}_noise.asdf")
         noise_af = asdf.AsdfFile(noise)
         noise_af.write_to(outfile)
