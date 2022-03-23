@@ -175,7 +175,7 @@ def parse_solar_files(files):
                                                               
     return np.array(date), np.array(flux)                     
 
-def get_1291_box():
+def get_1291_box(aperture="PSA"):
     """
     Determine the 1291 PSA extraction box for each lifetime position.
     
@@ -193,6 +193,7 @@ def get_1291_box():
             raise AssertionError("CRDS_PATH environment variable must first be defined")
     os.environ["CRDS_SERVER_URL"] = "https://hst-crds.stsci.edu"
     import crds
+    current_pmap = crds.get_default_context() 
 
     # The active area limits are taken from the COS BRFTAB x1u1459il_brf.fits
     # This file will almost certainly not be updated, so hardcoding is okay.
@@ -206,14 +207,14 @@ def get_1291_box():
                                 "DETECTOR": "FUV", "LIFE_ADJ": life_adj, 
                                 "OBSTYPE": "SPECTROSCOPIC", 
                                 "DATE-OBS": date_obs, "TIME-OBS": "00:00:00"},
-                            reftypes=["xtractab"], context="hst_0788.pmap", observatory="hst")
+                            reftypes=["xtractab"], context=current_pmap, observatory="hst")
             lp_1dx = os.path.join(os.environ["CRDS_PATH"], "references/hst/", 
                                   crds_1dx["xtractab"])
     
-            data_1dx = fits.getdata(lp_1dx)
+            data_1dx = fits.getdata(lp_1dx, 1)
             ind = np.where((data_1dx["cenwave"] == 1291) & 
                            (data_1dx["segment"] == segment) & 
-                           (data_1dx["aperture"] == "PSA"))
+                           (data_1dx["aperture"] == aperture))
             psa_data = data_1dx[ind]
     
             x = np.arange(16384)

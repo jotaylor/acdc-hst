@@ -4,3 +4,8 @@ cos_dark.egg-info/
 superdarks/
 *.p
 old/
+*.asdf
+*.pdf
+*.npy
+*.fits
+*.png

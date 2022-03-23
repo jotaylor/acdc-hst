@@ -7,11 +7,7 @@ from schema import Solar, Darks
 
 TESTING = False
 
-with open("settings.yaml", "r") as f:
-    SETTINGS = yaml.safe_load(f)
-    DBNAME = SETTINGS["dbname"]
-
-def all_darks(dbname=DBNAME):
+def all_darks(dbname="cos_dark"):
     """
     Query the Darks table to get darks for all time for all PHAs.
 
@@ -47,7 +43,7 @@ def all_darks(dbname=DBNAME):
     return df
 
 def files_by_mjd(mjdstart, mjdend, segment="FUVA", hv=167, morecols=[],
-                 dbname=DBNAME):
+                 dbname="cos_dark"):
     
 	# Connect to database
     session, engine = load_connection(dbname)
@@ -75,7 +71,7 @@ def files_by_mjd(mjdstart, mjdend, segment="FUVA", hv=167, morecols=[],
     return df
 
 def counts_by_mjd(mjdstart, mjdend, morecols=[],
-                  dbname=DBNAME):
+                  dbname="cos_dark"):
     
 	# Connect to database
     session, engine = load_connection(dbname)

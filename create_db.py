@@ -1,24 +1,28 @@
+import argparse
 import yaml
 from connect_db import load_connection
-from schema import Base, Darks, Solar
 
-with open("settings.yaml", "r") as f:
-    SETTINGS = yaml.load(f)
-    DBNAME = SETTINGS["dbname"]
-
-def create_db(dbname=DBNAME):
+def create_db(dbname="cos_dark"):
     """
     Create the database, with name specified from `settings.yaml`.
 
     Args:
-        connection_string (str): Connection string of the form:
-            `dialect+driver://username:password@host:port/database`
+        dbname (str): Name of database to create with empty tables.
+            Currently cos_dark and dark_events are supported. 
     """
 
+    if dbname == "cos_dark":
+        from schema import Base, Darks, Solar
+    elif dbname == "dark_events":
+        from darkevents_schema import Base, DarkEvents
     session, engine = load_connection(dbname)
-    # It's important that the Base from schema.py be used (from the import)
+    # It's important that the Base from appropriate be schema be used, imported above
     Base.metadata.create_all(engine)
-    print("Created database cos_dark.db")
+    print(f"Created database/tables for {dbname}")
 
 if __name__ == "__main__":
-    create_db()
+    parser = argparse.ArgumentParser()
+    parser.add_argument("-d", "--db", default="cos_dark",
+                        help="Name of database to create")
+    args = parser.parse_args()
+    create_sqlite_db(args.db)
