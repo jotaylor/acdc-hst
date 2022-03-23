@@ -1,8 +1,8 @@
 # Build directories
-__pycache__/
-cos_dark.egg-info/
-dist/
-build/
+*__pycache__/
+*egg-info/
+*dist/
+*build/
 
 # Jupyter
 .ipynb_checkpoints/
