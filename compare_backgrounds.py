@@ -111,7 +111,6 @@ def get_data(flt_custom, flt_default, superdark_custom, dark_dir=LOCAL_DARKDIR, 
     S_lo_flt[ystart:yend, xstart:xend] = S_lo_flt0
     S_hi_flt[ystart:yend, xstart:xend] = S_hi_flt0
 
-
     bkg1_sum_lo = sum_bkg_region(S_lo_flt, bkg1_y0, bkg1_y1)
     bkg1_lo,_ = smooth_array(bkg1_sum_lo)
     bkg2_sum_lo = sum_bkg_region(S_lo_flt, bkg2_y0, bkg2_y1)
@@ -133,24 +132,19 @@ def get_data(flt_custom, flt_default, superdark_custom, dark_dir=LOCAL_DARKDIR, 
     af = asdf.open(superdark_custom)
     pha_str = f"pha{PHA_INCL_EXCL[0]}-{PHA_INCL_EXCL[1]}"
     dark_im = af.tree[pha_str]
-    dark_im_flt = dark_im / af.tree["total_exptime"]
+    dark_im_flt0 = dark_im / af.tree["total_exptime"]
     binning = get_binning_pars(af)
-    dark_x = np.arange(binning["xstart"], binning["xend"], binning["bin_x"])
-    #dark_y = np.arange(binning["ystart"], binning["yend"]+binning["bin_y"], binning["bin_y"])
-    xs = np.zeros(16384)
-    _, bkg1_y0_bin0 = bin_coords(xs, bkg1_y0, binning["bin_x"], binning["bin_y"], binning["xstart"], binning["ystart"])
-    _, bkg1_y1_bin0 = bin_coords(xs, bkg1_y1, binning["bin_x"], binning["bin_y"], binning["xstart"], binning["ystart"])
-    _, bkg2_y0_bin0 = bin_coords(xs, bkg2_y0, binning["bin_x"], binning["bin_y"], binning["xstart"], binning["ystart"])
-    _, bkg2_y1_bin0 = bin_coords(xs, bkg2_y1, binning["bin_x"], binning["bin_y"], binning["xstart"], binning["ystart"])
-#    ys = np.array([bkg1_y0, bkg1_y1, bkg2_y0, bkg2_y1])
-#    xsnew, ysnew = bin_coords(xs, ys, binning["bin_x"], binning["bin_y"], binning["xstart", binning["ystart"])
-#    bkg1_y0_bin0, bkg1_y1_bin0, bkg2_y0_bin0, bkg2_y1_bin0 = ysnew
-    bkg1_y0_bin = list(itertools.islice(bkg1_y0_bin0, binning["xstart"], binning["xend"], binning["bin_x"]))
-    bkg1_y1_bin = list(itertools.islice(bkg1_y1_bin0, binning["xstart"], binning["xend"], binning["bin_x"]))
-    bkg2_y0_bin = list(itertools.islice(bkg2_y0_bin0, binning["xstart"], binning["xend"], binning["bin_x"]))
-    bkg2_y1_bin = list(itertools.islice(bkg2_y1_bin0, binning["xstart"], binning["xend"], binning["bin_x"]))
-    bkg1_dark = sum_bkg_region(dark_im_flt, bkg1_y0_bin, bkg1_y1_bin)
-    bkg2_dark = sum_bkg_region(dark_im_flt, bkg2_y0_bin, bkg2_y1_bin)
+    dark_im_flt_perpixel = dark_im_flt0 / binning["bin_y"] / binning["bin_x"]
+    dark_im_flt = np.zeros(16777216).reshape(1024, 16384)
+    xs = np.arange(binning["xstart"], binning["xend"], binning["bin_x"])
+    ys = np.arange(binning["ystart"], binning["yend"], binning["bin_y"])
+    for i in range(len(xs)-1): 
+        for j in range(len(ys)-1):
+            dark_im_flt[ys[j]:ys[j+1], xs[i]:xs[i+1]] = dark_im_flt_perpixel[j,i]
+    dark_x = np.arange(16384)
+    
+    bkg1_dark = sum_bkg_region(dark_im_flt, bkg1_y0, bkg1_y1)
+    bkg2_dark = sum_bkg_region(dark_im_flt, bkg2_y0, bkg2_y1)
     
     return binned_x, bkg1_default, bkg2_default, bkg1_custom, bkg2_custom, \
         bkg1_lo, bkg2_lo, bkg1_hi, bkg2_hi, bkg1_dark, bkg2_dark, dark_x
@@ -161,6 +155,9 @@ def plot_data(x, bkg1_default, bkg2_default, bkg1_custom, bkg2_custom, bkg1_lo,
               bkg2_lo, bkg1_hi, bkg2_hi, bkg1_dark, bkg2_dark, dark_x, targname):
     fig, axes0 = plt.subplots(3, 1, figsize=(8.5, 11))
     axes = axes0.flatten()
+    axes[0].hlines(y=0, xmin=-1000, xmax=17384, colors="lightgrey", linestyles="--")
+    axes[1].hlines(y=0, xmin=-1000, xmax=17384, colors="lightgrey", linestyles="--")
+    axes[2].hlines(y=0, xmin=-1000, xmax=17384, colors="lightgrey", linestyles="--")
     
     bkg1 = {"default": bkg1_default, "custom": bkg1_custom, "lo": bkg1_lo, "hi": bkg1_hi, "superdark": bkg1_dark}
     bkg2 = {"default": bkg2_default, "custom": bkg2_custom, "lo": bkg2_lo, "hi": bkg2_hi, "superdark": bkg2_dark}
@@ -182,6 +179,7 @@ def plot_data(x, bkg1_default, bkg2_default, bkg1_custom, bkg2_custom, bkg1_lo,
         ax.plot(x, d["hi"],        COLORS[3], alpha=0.8, label="Hi Dark")
         ax.plot(dark_x, d["superdark"], COLORS[4], alpha=0.8, label="Custom Dark")
         ax.set_ylim(-.0001, 0.00035)
+        ax.set_xlim(-500, 16884)
         ax.set_title(titles[i])
         ax.legend()
     figname = f"{targname}_flt_comp.png"
