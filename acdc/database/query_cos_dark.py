@@ -2,8 +2,8 @@ import yaml
 from sqlalchemy.orm import load_only
 import pandas as pd
 
-from connect_db import load_connection
-from schema import Solar, Darks
+from .connect_db import load_connection
+from .schema import Solar, Darks
 
 TESTING = False
 

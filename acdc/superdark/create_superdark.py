@@ -1,7 +1,7 @@
 import numpy as np
 import argparse
 
-from cos_fuv_superdark import Superdark
+from acdc.superdark.cos_fuv_superdark import Superdark
 
 def all_hvs():
     S = Superdark(hv=163, segment= "FUVA", mjdstarts=[58000], mjdends=[58220], bin_pha=1, phastart=1, phaend=31, 

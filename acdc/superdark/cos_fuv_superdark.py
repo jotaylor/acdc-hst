@@ -19,7 +19,7 @@ import dask
 import matplotlib.pyplot as plt
 from matplotlib.backends.backend_pdf import PdfPages
 
-from query_cos_dark import files_by_mjd
+from acdc.database.query_cos_dark import files_by_mjd
 
 class Superdark():
     def __init__(self, hv, segment, mjdstarts, mjdends, dayint=100, bin_x=1,

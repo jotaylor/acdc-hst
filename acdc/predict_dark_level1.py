@@ -32,11 +32,10 @@ from astropy.io import fits
 import numpy as np
 import matplotlib.pyplot as plt
 
-from make_clean_superdark import bin_corrtag
-from cos_fuv_superdark import Superdark
-from calculate_dark import get_aperture_region
-from compare_backgrounds import smooth_array
-from utils import bin_coords
+from acdc.superdark.cos_fuv_superdark import Superdark
+from acdc.database.calculate_dark import get_aperture_region
+from acdc.analysis.compare_backgrounds import smooth_array
+from acdc.utils.utils import bin_coords
 
 RESEL = [6, 10]
 PHA_INCLUSIVE = [2, 23]

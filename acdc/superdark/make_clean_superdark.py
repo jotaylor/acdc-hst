@@ -7,7 +7,7 @@ import pandas as pd
 import numpy as np
 from calcos import ccos
 
-from query_cos_dark import files_by_mjd
+from acdc.database.query_cos_dark import files_by_mjd
 
 TESTING = False
 

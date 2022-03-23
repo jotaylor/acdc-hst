@@ -3,9 +3,9 @@ from sqlalchemy.orm import load_only
 from sqlalchemy.sql import text
 import pandas as pd
 
-from connect_db import load_connection
-import darkevents_schema
-from utils import sql_to_df
+from .connect_db import load_connection
+import .darkevents_schema
+from acdc.utils.utils import sql_to_df
 
 DBNAME = "dark_events"
 COLUMNS = ["xcorr", "ycorr", "pha", "mjd", "hv", "segment", "filename", "proposid"]

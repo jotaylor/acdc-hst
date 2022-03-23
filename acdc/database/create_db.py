@@ -1,6 +1,7 @@
 import argparse
 import yaml
-from connect_db import load_connection
+
+from .connect_db import load_connection
 
 def create_db(dbname="cos_dark"):
     """

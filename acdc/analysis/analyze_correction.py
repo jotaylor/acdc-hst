@@ -8,8 +8,8 @@ from astropy.io import fits
 from scipy import stats
 import asdf
 
-from cos_fuv_superdark import Superdark
-from utils import get_binning_pars, bin_coords, unbin_image
+from acdc.superdark.cos_fuv_superdark import Superdark
+from acdc.utils.utils import get_binning_pars, bin_coords, unbin_image
 
 LOCAL_REFDIR = "/grp/hst/cdbs/lref"
 LOCAL_DARKDIR = "/astro/sveash/cos_dark/final_superdarks"

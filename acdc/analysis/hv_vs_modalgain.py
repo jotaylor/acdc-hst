@@ -7,9 +7,9 @@ from timeit import default_timer as timer
 import pandas as pd
 from collections import OrderedDict,defaultdict
 
-from connect_db import load_connection
-import darkevents_schema
-from utils import sql_to_df
+from acdc.database.connect_db import load_connection
+from acdc.database import darkevents_schema
+from acdc.utils.utils import sql_to_df
 
 HV = {"FUVA": [163, 167, 169, 171, 173, 178],
       "FUVB": [163, 167, 169, 175]}
