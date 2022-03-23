@@ -13,7 +13,7 @@ import create_db
 from connect_db import load_connection
 from schema import Solar, Darks
 from darkevents_schema import *
-from calculate_dark import measure_darkrate, parse_solar_files, get_1291_box
+from calculate_dark import measure_darkrate, parse_solar_files, get_aperture_region
 #from within_saa import get_saa_poly
 #from saa_distance import Distance3dPointTo3dCoords
 
@@ -163,7 +163,7 @@ def populate_darks(files, dbname="cos_dark", db_table=Darks):
             defaults to Darks.
     """
 
-    psa_1291 = get_1291_box()
+    apertures = get_aperture_region()
 
     # Connect to database.
     session, engine = load_connection(dbname)
@@ -182,7 +182,7 @@ def populate_darks(files, dbname="cos_dark", db_table=Darks):
             hdr0 = hdulist[0].header
             hdr1 = hdulist[1].header
         itemname = os.path.basename(item)
-        info, dark = measure_darkrate(item, psa_1291)
+        info, dark = measure_darkrate(item, apertures)
         
         # Query the Solar table to get solar fluxes near the dark observation
         # dates. Interpolate to get appropriate values. If Solar table is not

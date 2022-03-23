@@ -1,3 +1,4 @@
+import datetime
 import os
 import glob
 import numpy as np
@@ -10,7 +11,7 @@ from astropy.io import ascii
 __author__ = "Jo Taylor"
 __email__ = "jotaylor@stsci.edu"
 
-def measure_darkrate(filename, psa_1291=None):
+def measure_darkrate(filename, apertures=None):
     """
     For an input dark dataset, record exposure information including
     observation time, observatory latitude & longitude. Measure dark rate at
@@ -21,8 +22,8 @@ def measure_darkrate(filename, psa_1291=None):
     
     Args:
         filename (str): Name of dark dataset.
-        psa_1291 (dict): Output from `get_1291_box()`. This is passed in to avoid
-            running `get_1291_box()` many times within this function.
+        apertures (dict): Output from `get_aperture_region()`. This is passed in to avoid
+            running `get_aperture_region()` many times within this function.
    
     Returns:
         dark_df (:obj:`pandas.dataframe`): Pandas dataframe with information for each
@@ -31,8 +32,8 @@ def measure_darkrate(filename, psa_1291=None):
 
     hdulist = fits.open(filename)
     
-    if psa_1291 is None:
-        psa_1291 = get_1291_box()
+    if apertures is None:
+        apertures = get_aperture_region()
 
     timeline = hdulist["timeline"].data
     events = hdulist["events"].data
@@ -43,12 +44,12 @@ def measure_darkrate(filename, psa_1291=None):
         location = {"inner": (1260, 15119, 375, 660), "bottom": (1060, 15250, 296, 375),
                     "top": (1060, 15250, 660, 734), "left": (1060, 1260, 296, 734),
                     "right": (15119, 15250, 296, 734)}
-        location.update(psa_1291[segment])
+        location.update(apertures[segment])
     elif segment == "FUVB":
         location = {"inner": (1000, 14990, 405, 740), "bottom": (809, 15182, 360, 405),
                     "top": (809, 15182, 740, 785), "left": (809, 1000, 360, 785),
                     "right": (14990, 15182, 360, 785)}
-        location.update(psa_1291[segment])
+        location.update(apertures[segment])
     pha = (2, 23)
     timestep = 25 # in units of seconds
     times = timeline["time"][::timestep].copy()
@@ -70,7 +71,7 @@ def measure_darkrate(filename, psa_1291=None):
     for x in location:
         region_area = (location.get(x)[1] - location.get(x)[0]) * (location.get(x)[3] - location.get(x)[2])
         # In reality this is not an issue since YCORR=YFULL for darks.
-        if "location" == "psa_1291":
+        if "location" == "apertures":
             coord_x = "XCORR"
             coord_y = "YFULL"
         else:
@@ -175,17 +176,23 @@ def parse_solar_files(files):
                                                               
     return np.array(date), np.array(flux)                     
 
-def get_1291_box(aperture="PSA"):
+def get_aperture_region(cenwave=1291, aperture="PSA"):
+    
     """
-    Determine the 1291 PSA extraction box for each lifetime position.
+    Determine the extraction box for a given cenwave (1291 by default) and
+    aperture (PSA by default)
     
     Returns:
-        psa_1291 (dict): Dictionary where each key is segment, and the value
+        cenwave (int): Cenwave setting.
+        apertures (dict): Dictionary where each key is segment, and the value
             is another dictionary where each key is lifetime position,
             and the value is a tuple with (xmin, xmax, ymin, ymax) representing
-            the 1291 extraction box for that segment and LP combo.
+            the cenwave extraction box for that segment and LP combo.
     """    
     
+    today0 = datetime.datetime.now()
+    today = today0.strftime("%Y-%m-%d")
+
     if "CRDS_PATH" not in os.environ:
         if os.path.exists("/grp/crds/cache"):
             os.environ["CRDS_PATH"] = "/grp/crds/cache"
@@ -199,34 +206,35 @@ def get_1291_box(aperture="PSA"):
     # This file will almost certainly not be updated, so hardcoding is okay.
     aa_xcorr = {"FUVA": [1060, 15250], "FUVB": [809, 15182]}
 
-    psa_1291 = {"FUVA": {}, "FUVB": {}}
+    apertures = {"FUVA": {}, "FUVB": {}}
     # For each LP, determine the appropriate xtractab as returned by CRDS on the fly.
     for segment in ["FUVA", "FUVB"]:
-        for life_adj, date_obs in zip([1, 2, 3, 4], ["2010-01-01", "2014-01-01", "2016-01-01", "2018-01-01"]):
+#        for life_adj, date_obs in zip([1, 2, 3, 4], ["2010-01-01", "2014-01-01", "2016-01-01", "2018-01-01"]):
+        for life_adj in [1, 2, 3, 4, 5]:
             crds_1dx = crds.getrecommendations(parameters={"INSTRUME": "COS", 
                                 "DETECTOR": "FUV", "LIFE_ADJ": life_adj, 
                                 "OBSTYPE": "SPECTROSCOPIC", 
-                                "DATE-OBS": date_obs, "TIME-OBS": "00:00:00"},
+                                "DATE-OBS": today, "TIME-OBS": "00:00:00"},
                             reftypes=["xtractab"], context=current_pmap, observatory="hst")
             lp_1dx = os.path.join(os.environ["CRDS_PATH"], "references/hst/", 
                                   crds_1dx["xtractab"])
     
             data_1dx = fits.getdata(lp_1dx, 1)
-            ind = np.where((data_1dx["cenwave"] == 1291) & 
+            ind = np.where((data_1dx["cenwave"] == cenwave) & 
                            (data_1dx["segment"] == segment) & 
                            (data_1dx["aperture"] == aperture))
-            psa_data = data_1dx[ind]
+            aperture_data = data_1dx[ind]
     
             x = np.arange(16384)
-            y_center = psa_data["slope"][0] * x + psa_data["b_spec"][0]
-            y_upper = round(max(y_center + psa_data["height"][0] / 2))
-            y_lower = round(min(y_center - psa_data["height"][0] / 2))
+            y_center = aperture_data["slope"][0] * x + aperture_data["b_spec"][0]
+            y_upper = round(max(y_center + aperture_data["height"][0] / 2))
+            y_lower = round(min(y_center - aperture_data["height"][0] / 2))
     
-            lpkey = "lp{}_psa_1291".format(life_adj)
+            lpkey = f"lp{life_adj}_{aperture.lower()}_{cenwave}"
 
             # This  matches the format already defined in measure_darkrate()
             # i.e. xmin, xmax, ymin, ymax 
             # VERY IMPORTANT: Y coords are in YFULL, X in XCORR
-            psa_1291[segment][lpkey] = (aa_xcorr[segment][0], aa_xcorr[segment][1],
+            apertures[segment][lpkey] = (aa_xcorr[segment][0], aa_xcorr[segment][1],
                                         int(y_lower), int(y_upper))
-    return psa_1291
+    return apertures
