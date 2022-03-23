@@ -2,7 +2,7 @@ from setuptools import setup, find_packages
 import glob
 
 setup(
-    name = "cos_dark",
+    name = "acdc",
     version = "1.0",
     description = "Perform an optimized COS/FUV dark correction",
     author = "Jo Taylor",
@@ -16,10 +16,10 @@ setup(
                    'Topic :: Scientific/Engineering :: Astronomy',
                    'Topic :: Scientific/Engineering :: Physics',
                    'Topic :: Software Development :: Libraries :: Python Modules'],
-    py_modules = [x.split(".py")[0] for x in glob.glob("*.py") if "setup.py" not in x],
     # Only uncomment the below line if you are creating a package 
-    # (with a package directory scheme and __init__.py)
-#    packages = find_packages(),
+    packages = ["acdc"],
+    package_dir = {"acdc": "acdc"},
+    package_data = {"acdc": ["data/*"]},
     install_requires = ["setuptools",
                         "numpy",
                         "astropy",
