@@ -1,4 +1,4 @@
-# Another COS Background Correction (ACDC)
+# Another COS Background Correction (ACDC) ⚡
 
 ## Another background correction?
 COS spectroscopic science in the extreme UV regime is limited by detector 
