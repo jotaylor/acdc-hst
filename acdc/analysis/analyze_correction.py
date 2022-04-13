@@ -68,30 +68,30 @@ class CosImage():
 
     def get_background_regions(self, xtractab, cenwave):
         xtract = fits.getdata(xtractab)
-	    inds = np.where((xtract["segment"] == self.segment) &
-	                    (xtract["cenwave"] == cenwave) &
-	                    (xtract["aperture"] == "PSA"))
-	    xtract_data = xtract[inds]
-	    b1 = xtract_data["b_bkg1"]                                        
-	    b2 = xtract_data["b_bkg2"]
-	    height = xtract_data["height"]
-	    m = xtract_data["slope"]
-	    smoothsize = xtract_data["bwidth"]
-	    x = np.arange(0, 16384)
-	    bkg1_mid = m*x + b1
-	    bkg1_y1 = bkg1_mid + height/2
-	    bkg1_y0 = bkg1_mid - height/2
-	    bkg2_mid = m*x + b2
-	    bkg2_y1 = bkg2_mid + height/2
-	    bkg2_y0 = bkg2_mid - height/2
-	    bkg1_y0 = np.round(bkg1_y0)
-	    bkg1_y0 = bkg1_y0.astype(int)
-	    bkg2_y0 = np.round(bkg2_y0)
-	    bkg2_y0 = bkg2_y0.astype(int)
-	    bkg1_y1 = np.round(bkg1_y1)
-	    bkg1_y1 = bkg1_y1.astype(int)
-	    bkg2_y1 = np.round(bkg2_y1)
-	    bkg2_y1 = bkg2_y1.astype(int)
+        inds = np.where((xtract["segment"] == self.segment) &
+                        (xtract["cenwave"] == cenwave) &
+                        (xtract["aperture"] == "PSA"))
+        xtract_data = xtract[inds]
+        b1 = xtract_data["b_bkg1"]                                        
+        b2 = xtract_data["b_bkg2"]
+        height = xtract_data["height"]
+        m = xtract_data["slope"]
+        smoothsize = xtract_data["bwidth"]
+        x = np.arange(0, 16384)
+        bkg1_mid = m*x + b1
+        bkg1_y1 = bkg1_mid + height/2
+        bkg1_y0 = bkg1_mid - height/2
+        bkg2_mid = m*x + b2
+        bkg2_y1 = bkg2_mid + height/2
+        bkg2_y0 = bkg2_mid - height/2
+        bkg1_y0 = np.round(bkg1_y0)
+        bkg1_y0 = bkg1_y0.astype(int)
+        bkg2_y0 = np.round(bkg2_y0)
+        bkg2_y0 = bkg2_y0.astype(int)
+        bkg1_y1 = np.round(bkg1_y1)
+        bkg1_y1 = bkg1_y1.astype(int)
+        bkg2_y1 = np.round(bkg2_y1)
+        bkg2_y1 = bkg2_y1.astype(int)
 
         self.bkg1_xstart = bkg1_x0
         self.bkg1_xend = bkg1_x1
