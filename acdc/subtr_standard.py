@@ -2,10 +2,10 @@
 Perform a custom dark subtraction on COS science data.
 
 Command-line arguments:
--d or --datadir
-    Path which contains corrtags and output from predict_dark_level1.py
--o or --outdir
-    Path to write output products.
+    -d or --datadir
+        Path which contains corrtags and output from predict_dark_level1.py
+    -o or --outdir
+        Path to write output products.
 """
 import argparse
 import copy

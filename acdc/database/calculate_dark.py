@@ -177,11 +177,14 @@ def parse_solar_files(files):
     return np.array(date), np.array(flux)                     
 
 def get_aperture_region(cenwave=1291, aperture="PSA"):
-    
     """
     Determine the extraction box for a given cenwave (1291 by default) and
-    aperture (PSA by default)
+    aperture (PSA by default).
     
+    Args:
+        cenwave (int): Cenwave to look up.
+        aperture (str): Aperture to look up.
+
     Returns:
         cenwave (int): Cenwave setting.
         apertures (dict): Dictionary where each key is segment, and the value

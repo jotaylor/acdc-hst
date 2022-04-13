@@ -70,8 +70,8 @@ class Acdc():
             corrtags (array-like): All corrtags to be corrected.
         
         Returns:
-        corr_dict (dict): Dictionary where each key is the segment+HV setting 
-            and each value is a list of all corrtags with that setting.
+            corr_dict (dict): Dictionary where each key is the segment+HV setting 
+                and each value is a list of all corrtags with that setting.
         """
         
         corr_dict = defaultdict(list)
@@ -86,9 +86,9 @@ class Acdc():
         """Sort superdarks into a dictionary based on segment and HV setting.
         
         Returns:
-        dark_dict (dict): Nested dictionary where each key is the segment+HV setting
-            and each value is a dictionary where each key is the type of superdark 
-            (either 'active' or 'quiescent') and each value is the superdark name.
+            dark_dict (dict): Nested dictionary where each key is the segment+HV setting
+                and each value is a dictionary where each key is the type of superdark 
+                (either 'active' or 'quiescent') and each value is the superdark name.
         """
 
 #TODO - handle multiple superdarks per activity period
@@ -190,7 +190,11 @@ def run_acdc(indir, darkcorr_outdir, lo_darkname=None, hi_darkname=None, binned=
     Args:
         indir (str): Input directory that houses corrtags to correct.
         darkcorr_outdir (str): Custom dark-corrected corrtags will be written here.
-        binned (Bool): If True, pre-binned superdarks will be used.
+        lo_darkname (str): NOT YET IMPLEMENTED (Optional) Specific quiescent superdark to use. 
+        hi_darkname (str): NOT YET IMPLEMENTED (Optional) Specific active superdark to use.
+        binned (Bool): (Optional) If True, pre-binned superdarks will be used.
+        hv (str): NOT YET IMPLEMENTED (Optional) Process corrtags of this HV only.
+        segment (str): NOT YET IMPLEMENTED (Optional) Process corrtags of this segment only.
     """
     A = Acdc(indir, outdir, binned)
     #A = Acdc(indir, outdir, lo_darkname, hi_darkname, binned, hv, segment)

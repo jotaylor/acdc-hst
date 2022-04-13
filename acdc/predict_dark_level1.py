@@ -3,23 +3,23 @@ Given COS science datasets, compare the background regions in the science
 exposures to a low/quiescent and high/active superdark.
 
 Command line-arguments:
--d or --datatdir
-    The path to science corrtags
---hv 
-    If datadir contains corrtags of multiple HVs, you can use --hv to use
-    just one specific HV value.
---segment
-    If datadir contains corrtags of multiple segments, you can use --segment
-    to use just one specific segment.
---lo
-    The name of the low activity superdark.
---hi
-    The name of the high activity superdark.
--o or --outdir
-    The name of the output directory where products will be written.
---binned
-    Using this argument indicates that the supplied superdarks are already
-    binned and should not be binned any further.
+    -d or --datatdir
+        The path to science corrtags
+    --hv 
+        If datadir contains corrtags of multiple HVs, you can use --hv to use
+        just one specific HV value.
+    --segment
+        If datadir contains corrtags of multiple segments, you can use --segment
+        to use just one specific segment.
+    --lo
+        The name of the low activity superdark.
+    --hi
+        The name of the high activity superdark.
+    -o or --outdir
+        The name of the output directory where products will be written.
+    --binned
+        Using this argument indicates that the supplied superdarks are already
+        binned and should not be binned any further.
 """
 
 import copy
@@ -37,22 +37,56 @@ from acdc.database.calculate_dark import get_aperture_region
 from acdc.analysis.compare_backgrounds import smooth_array
 from acdc.utils.utils import bin_coords
 
-RESEL = [6, 10]
-PHA_INCLUSIVE = [2, 23]
+
+# Hardcoded constant values
+RESEL = [6, 10] # FUV resolution element size
+# These are the PHAs that CalCOS uses for calibration, where the 
+# lower and upper bounds are both inclusive 
+PHA_INCLUSIVE = [2, 23] 
+# These are the PHAs that CalCOS uses for calibration, where the 
+# lower bound is inclusive and upper bounds is exclusive. This is
+# the logic python uses!!
 PHA_INCL_EXCL = [2, 24]
 # Colorblind-safe palette below
 COLORS = ["#1b9e77", "#d95f02", "#7570b3", "#e7298a", "#66a61e", "#a6cee3", 
           "#1f78b4", "#b2df8a", "#33a02c", "#fb9a99", "#e31a1c", "#fdbf6f", 
           "#ff7f00", "#cab2d6", "#6a3d9a", "#ffff99", "#b15928", "#a6cee3"]
 
+
 def fun_opt(coeffs, darks, binned_sci, excluded_rows):
-	combined_dark = linear_combination(darks, coeffs)
-	cval = c_stat(combined_dark, binned_sci, excluded_rows)
-	
-	return cval
+    """TODO- fill in
+
+                       args=([lo_dark, hi_dark], binned_sci, excluded_rows),
+    Arguments:
+        coeffs (list): The output coefficients.
+        darks (list): A list of all superdarks to model, typicall [quiescent_dark, active_dark].
+        binned_sci (array): Binned science image.
+        excluded_rows (array): List of rows to exclude from modeling. Correspond
+            to the PSA and WCA regions.
+    Returns:
+        cval (list): Coefficients? TODO
+    """
+
+    combined_dark = linear_combination(darks, coeffs)
+    cval = c_stat(combined_dark, binned_sci, excluded_rows)
+    
+    return cval
 
 
 def linear_combination(darks, coeffs):
+    """Scale and combine superdarks.
+
+    Scale multiple superdarks (typically 1 quiescent and 1 active superdark),
+    then add them together to create a scaled model superdark for a particular
+    science exposure.
+
+    Arguments:
+        darks (list): List of superdarks to scale and combine.
+        coeffs (list): List of scale factors to apply to each superdark.
+    Returns:
+        combined (array): Scaled and combined model superdark.
+    """
+
     combined = darks[0] * coeffs[0]
     for i in range(1, len(darks)):
         combined += darks[i] * coeffs[i]
@@ -60,10 +94,13 @@ def linear_combination(darks, coeffs):
 
 
 def check_superdarks(af1, af2):
+    """Ensure all input superdarks were binned with identical bin sizes.
+
+    Arguments: 
+        af1 (AsdfFile): ASDF file 1 to compare.
+        af2 (AsdfFile): ASDF file 2 to compare.
     """
-    Ensure that both active and quiescent superdarks were binned in identical
-    ways.
-    """
+
     bad = False
     keys = ["bin_pha", "bin_x", "bin_y", "xstart", "xend", "ystart", "yend",
             "phastart", "phaend"]
@@ -75,10 +112,15 @@ def check_superdarks(af1, af2):
 
 
 def get_binning_pars(af):
+    """Return spatial and PHA binning information for a superdark. 
+    
+    Arguments:
+        af (AsdfFile): ASDF file to extract binning information from.
+    Returns:
+        binning (dict): Dictionary that describes the binning information
+            in both the spatial and PHA dimensions.
     """
-    For a given superdark, return the binning information in the spatial 
-    directions and PHA.
-    """
+    
     keys = ["bin_pha", "bin_x", "bin_y", "xstart", "xend", "ystart", "yend",
             "phastart", "phaend"]
     binning = {}
@@ -91,7 +133,16 @@ def bin_science(corrtag, b, fact=1):
     """
     Given a corrtag with lists of events as a function of X, Y, and PHA,
     bin the data into an image using the same bin sizes as the superdark.
+
+    Arguments:
+        corrtag (str): Corrtag to bin.
+        b (dict): Dictionary that describes the binning information
+            in both the spatial and PHA dimensions. (Only spatial is used)
+    Returns:
+        binned (array): Binned science image.
+        nevents (array): Number of events in each binned pixel.
     """
+
     data = fits.getdata(corrtag)
     phainds = np.where((data["pha"] >= b["phastart"]) & 
                        (data["pha"] < b["phaend"]))
@@ -118,8 +169,19 @@ def bin_science(corrtag, b, fact=1):
 def get_excluded_rows(segment, cenwave, lp, binning):
     """
     Determine the rows that correspond to the PSA and WCA apertures for a 
-    given segment and lifetime position. Return the row indices in the
-    binned superdark coordinate system.
+    igiven segment, cenwave, and lifetime position. Return the row indices in 
+    the binned superdark coordinate system.
+
+    Arguments:
+        segment (str): Get PSA/WCA regions for this segment.
+        cenwave (str): Get PSA/WCA regions for this cenwave.
+        lp (str): Get PSA/WCA regions for this lifetime position.
+        binning (dict): Dictionary that describes the binning information
+            in both the spatial and PHA dimensions.
+    Returns:
+        excluded_rows (array): List of rows to exclude. Corresponds
+            to the PSA and WCA regions.
+        apertures (dict): The excluded rows for each aperture, PSA and WCA.
     """
     
     excluded_rows = np.array(())
@@ -137,7 +199,20 @@ def get_excluded_rows(segment, cenwave, lp, binning):
     excluded_rows = excluded_rows.astype(int)
     return excluded_rows, apertures
 
+
 def c_stat(combined_dark, binned_sci, excluded_rows):
+    """TODO document
+
+    Arguments:
+        combined_ark (array): Scaled and combined model superdark.
+        binned_sci (array): Binned science image.
+        excluded_rows (array): List of rows to exclude. Corresponds
+            to the PSA and WCA regions.
+    
+    Returns:
+        csum (float): TODO
+    """
+
     csum = 0.
     for y in range(combined_dark.shape[0]):
         for x in range(combined_dark.shape[1]):
@@ -151,7 +226,25 @@ def c_stat(combined_dark, binned_sci, excluded_rows):
     return csum
 
 
-def predict_dark(corrtags, lo_darkname, hi_darkname, segment=None, hv=None, outdir=".", binned=False):
+def predict_dark(corrtags, lo_darkname, hi_darkname, segment=None, hv=None, 
+                 outdir=".", binned=False):
+    """Model the superdark for each input science corrtag.
+
+    Use the active and quiescent superdarks of the
+    appropriate segment+HV combination to determine the best predicted
+    superdark model for each science corrtag.
+
+    Args:
+        corrtags (list or array-like): Predict the model superdark for these corrtags.
+        lo_darkname (str): Quiescent superdark of the appropriate segment+HV combination.
+        hi_darkname (str): Active superdark of the appropriate segment+HV combination.
+        segment (str): (Optional) Process corrtags of this segment only.
+        hv (str): (Optional) Process corrtags of this HV only.
+        outdir (str): (Optional) Output directory to write products and plots.
+            Default is current working directory.
+        binned (Bool): (Optional) If True, indicates input superdarks are already
+            binned. If False, input superdarks will be binned on the fly.
+    """
     if not os.path.exists(outdir):
         os.makedirs(outdir)
 
@@ -251,7 +344,7 @@ def predict_dark(corrtags, lo_darkname, hi_darkname, segment=None, hv=None, outd
         plt.savefig(figname, bbox_inches="tight")
         print(f"Saved non-PSA/WCA rows: {figname}")
         plt.clf()
-        val_c = c_stat(combined_dark, binned_sci, excluded_rows)
+#        val_c = c_stat(combined_dark, binned_sci, excluded_rows)
 
 # TO DO, always hardcode this?
 # Compare hardcoded vs variables
