@@ -41,6 +41,7 @@ html_show_sourcelink = False  # Remove 'view source code' from top of page (for 
 autodoc_inherit_docstrings = True  # If no docstring, inherit from base class
 set_type_checking_flag = True  # Enable 'expensive' imports for sphinx_autodoc_typehints
 add_module_names = False # Remove namespaces from class/method signatures
+napoleon_custom_sections = [('Returns', 'params_style')]
 
 # Add any Sphinx extension module names here, as strings. They can be
 # extensions coming with Sphinx (named 'sphinx.ext.*') or your custom
