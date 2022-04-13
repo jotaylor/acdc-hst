@@ -1,20 +1,13 @@
-.. acdc documentation master file, created by
-   sphinx-quickstart on Wed Apr 13 16:14:09 2022.
-   You can adapt this file completely to your liking, but it should at least
-   contain the root `toctree` directive.
+..
+   Note: Items in this toctree form the top-level navigation. See `api.rst` for the `autosummary` directive, and for why `api.rst` isn't called directly.
+
+.. toctree::
+   :hidden:
+
+   Home page <self>
+   API reference <_autosummary/acdc>
 
 Welcome to acdc's documentation!
 ================================
 
-.. toctree::
-   :maxdepth: 2
-   :caption: Contents:
-
-
-
-Indices and tables
-==================
-
-* :ref:`genindex`
-* :ref:`modindex`
-* :ref:`search`
+This is acdc!
