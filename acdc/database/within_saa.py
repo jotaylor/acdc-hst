@@ -28,23 +28,20 @@ SAA_LONGITUDE_CUTOFF = 200.
 
 def testWithinSAA(hst, vertices, middle_SAA):
     """Test whether HST is within the polygon for an SAA contour.
-    Parameters
-    ----------
-    hst: array_like
-        Unit vector pointing from the center of the Earth toward the
-        location of HST at a particular time.
-    vertices: array_like, shape (nvertices,3)
-        vertices[i] is a unit vector from the center of the Earth toward
-        vertex number i of a polygon that defines one of the SAA contour.
-    middle_SAA: array_like
-        Unit vector from the center of the Earth toward a point near the
-        middle of the SAA region.  This is for making a quick check that
-        hst is close enough to the SAA contour to be worth making a
-        detailed check.
-    Returns
-    -------
-    boolean
-        True if hst is within the SAA contour defined by vertices.
+    
+    Args:
+        hst (array_like): Unit vector pointing from the center of the Earth toward the
+            location of HST at a particular time.
+        vertices (array_like, shape (nvertices,3)): vertices[i] is a unit vector 
+            from the center of the Earth toward
+            vertex number i of a polygon that defines one of the SAA contour.
+        middle_SAA (array_like): Unit vector from the center of the Earth toward a point near the
+            middle of the SAA region.  This is for making a quick check that
+            hst is close enough to the SAA contour to be worth making a
+            detailed check.
+    
+    Returns:
+        bool: True if hst is within the SAA contour defined by vertices.
     """
 
     # This test is primarily to exclude points that are diametrically
@@ -85,19 +82,17 @@ def testWithinSAA(hst, vertices, middle_SAA):
 
 def saaFilter(longitude_col, latitude_col, model=COS_FUV_MODEL):
     """Flag within the specified SAA contour as bad.
-    Parameters
-    ----------
-    model: int
-        The SAA model number.  Currently these range from 2 to 32
-        inclusive.  (Models 0 and 1 are radio frequence interference
-        contours.)
-    Returns
-    -------
-    flag: array_like
-        This is a boolean array, one element for each row of the
-        TIMELINE table.  True means that HST was within the SAA
-        contour (specified by model) at the time corresponding to
-        the TIMELINE row.
+    
+    Args:
+        model (int): The SAA model number.  Currently these range from 2 to 32
+            inclusive.  (Models 0 and 1 are radio frequence interference
+            contours.)
+    
+    Returns:
+        flag (array_like): This is a boolean array, one element for each row of the
+            TIMELINE table.  True means that HST was within the SAA
+            contour (specified by model) at the time corresponding to
+            the TIMELINE row.
     """
 
     nelem = len(longitude_col)
@@ -134,16 +129,13 @@ def saaFilter(longitude_col, latitude_col, model=COS_FUV_MODEL):
 
 def toRect(longitude, latitude):
     """Convert longitude and latitude to rectangular coordinates.
-    Parameters
-    ----------
-    longitude: float
-        longitude in degrees.
-    latitude: float
-        latitude in degrees.
-    Returns
-    --------
-    array_like
-        Unit vector in rectangular coordinates.
+    
+    Args:
+        longitude (float): longitude in degrees.
+        latitude (float): latitude in degrees.
+    
+    Returns:
+        rect (array-like): Unit vector in rectangular coordinates.
     """
 
     rect = np.array([1.0, 0.0, 0.0], dtype=np.float64)
