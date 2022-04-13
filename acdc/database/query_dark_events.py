@@ -3,8 +3,8 @@ from sqlalchemy.orm import load_only
 from sqlalchemy.sql import text
 import pandas as pd
 
-from .connect_db import load_connection
-import .darkevents_schema
+from acdc.database.connect_db import load_connection
+import acdc.database.darkevents_schema
 from acdc.utils.utils import sql_to_df
 
 DBNAME = "dark_events"

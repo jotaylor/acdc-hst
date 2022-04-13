@@ -9,11 +9,11 @@ from astropy.io import fits
 from sqlalchemy import Table
 from sqlalchemy.ext.declarative import declarative_base
 
-import .create_db
-from .connect_db import load_connection
-from .schema import Solar, Darks
-from .darkevents_schema import *
-from .calculate_dark import measure_darkrate, parse_solar_files, get_aperture_region
+import acdc.database.create_db as create_db
+from acdc.database.connect_db import load_connection
+from acdc.database.schema import Solar, Darks
+from acdc.database.darkevents_schema import *
+from acdc.database.calculate_dark import measure_darkrate, parse_solar_files, get_aperture_region
 #from within_saa import get_saa_poly
 #from saa_distance import Distance3dPointTo3dCoords
 
