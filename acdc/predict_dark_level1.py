@@ -56,7 +56,6 @@ COLORS = ["#1b9e77", "#d95f02", "#7570b3", "#e7298a", "#66a61e", "#a6cee3",
 def fun_opt(coeffs, darks, binned_sci, excluded_rows):
     """TODO- fill in
 
-                       args=([lo_dark, hi_dark], binned_sci, excluded_rows),
     Arguments:
         coeffs (list): The output coefficients.
         darks (list): A list of all superdarks to model, typicall [quiescent_dark, active_dark].
