@@ -38,7 +38,7 @@ class Acdc():
     """
     
     def __init__(self, indir, darkcorr_outdir, x1d_outdir=None, binned=False, 
-                 superdark_dir=None, overwrite=False):
+                 superdark_dir=None, segment=None, hv=None, overwrite=False):
         """
         Args:
             indir (str): Input directory that houses corrtags to correct.
@@ -59,7 +59,9 @@ class Acdc():
         self.superdark_dir = superdark_dir
 
         self.darkcorr_outdir = darkcorr_outdir
-        self.binned = binned 
+        self.binned = binned
+        self.segment = segment.upper()
+        self.hv = hv 
         now = datetime.datetime.now()
         self.x1d_outdir = os.path.join(darkcorr_outdir, f"cal_{now.strftime('%d%b%Y')}")
         if not os.path.exists(darkcorr_outdir):
@@ -70,7 +72,9 @@ class Acdc():
 
     
     def sort_corrtags(self, corrtags):
-        """Sort corrtags into a dictionary based on segment and HV setting.
+        """
+        Sort corrtags into a dictionary. If specified, filter corrtags based 
+        on segment and HV setting.
         
         Args:
             corrtags (array-like): All corrtags to be corrected.
@@ -84,6 +88,12 @@ class Acdc():
         for item in corrtags:
             file_segment = fits.getval(item, "segment")
             file_hv = fits.getval(item, f"HVLEVEL{file_segment[-1]}", 1)
+            if self.segment is not None:
+                if file_segment != self.segment:
+                    continue
+            if self.hv is not None:
+                if file_hv != self.hv:
+                    continue
             corr_dict[f"{file_segment}_{file_hv}"].append(item)
         return corr_dict
 
@@ -155,7 +165,8 @@ class Acdc():
             hi_darkname = self.dark_dict[seg_hv]["active"]
             predict_dark(corrtags, lo_darkname, hi_darkname, 
                          outdir=self.darkcorr_outdir, binned=self.binned,
-                         overwrite=self.overwrite)
+                         overwrite=self.overwrite, segment=self.segment,
+                         hv=self.hv)
             subtract_dark(corrtags, self.darkcorr_outdir, outdir=self.darkcorr_outdir, 
                           overwrite=self.overwrite)
         self.custom_corrtags = glob.glob(os.path.join(self.darkcorr_outdir, "corrected*corrtag*fits"))

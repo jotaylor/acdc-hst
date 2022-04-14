@@ -259,8 +259,10 @@ def predict_dark(corrtags, lo_darkname, hi_darkname, segment=None, hv=None,
     if binned is False:
         Lo = Superdark.from_asdf(lo_darkname, overwrite=overwrite)
         Hi = Superdark.from_asdf(hi_darkname, overwrite=overwrite)
-        lo_binnedname = lo_darkname.replace(".asdf", "_phabinned.asdf")
-        hi_binnedname = hi_darkname.replace(".asdf", "_phabinned.asdf")
+        lo_binnedname0 = lo_darkname.replace(".asdf", "_phabinned.asdf")
+        hi_binnedname0 = hi_darkname.replace(".asdf", "_phabinned.asdf")
+        lo_binnedname = os.path.join(outdir, lo_binnedname0)
+        hi_binnedname = os.path.join(outdir, hi_binnedname0)
         Lo.screen_counts(verbose=False)
         Hi.screen_counts(verbose=False)
         Lo.bin_superdark(RESEL[0]*2, RESEL[1]*2, pha_bins=PHA_INCL_EXCL, outfile=lo_binnedname)
@@ -298,15 +300,18 @@ def predict_dark(corrtags, lo_darkname, hi_darkname, segment=None, hv=None,
         fig.savefig(figname, bbox_inches="tight")
         print(f"Saved active superdark figure:{figname}")
     for item in corrtags:
+        file_segment = fits.getval(item, "segment")
+        file_hv = fits.getval(item, f"HVLEVEL{file_segment[-1]}", 1)
         if segment is not None:
-            file_segment = fits.getval(item, "segment")
-            if hv is not None:
-                file_hv = fits.getval(item, f"HVLEVEL{file_segment[-1]}", 1)
-                if file_segment != segment.upper() and str(file_hv) != str(hv):
-                    print(f"File does not match required settings: {item}")
-                    continue
+            if file_segment != segment.upper() and str(file_hv) != str(hv):
+                print(f"File does not match required settings: {item}")
+                continue
         else:
-            segment = fits.getval(item, "segment") 
+            segment = file_segment
+        if hv is not None:
+            if file_hv != hv:
+                print(f"File does not match required settings: {item}")
+                continue
 
         cenwave = fits.getval(item, "cenwave")
         fig, ax = plt.subplots(1, 1, figsize=(20, 8))
