@@ -3,7 +3,7 @@ from acdc.dark_correction import Acdc
 
 
 def run_acdc(indir, darkcorr_outdir, lo_darkname=None, hi_darkname=None, binned=False,
-             hv=None, segment=None):
+             hv=None, segment=None, overwrite=False):
 #TODO- allow for specific superdarks, hv, and segment
 #TODO allow for specification of x1d_outdir
     """Wrapper script to perform custom dakr correction on an input directory.
@@ -17,7 +17,7 @@ def run_acdc(indir, darkcorr_outdir, lo_darkname=None, hi_darkname=None, binned=
         hv (str): NOT YET IMPLEMENTED (Optional) Process corrtags of this HV only.
         segment (str): NOT YET IMPLEMENTED (Optional) Process corrtags of this segment only.
     """
-    A = Acdc(indir=indir, darkcorr_outdir=darkcorr_outdir, binned=binned)
+    A = Acdc(indir=indir, darkcorr_outdir=darkcorr_outdir, binned=binned, overwrite=overwrite)
     #A = Acdc(indir, darkcorr_outdir, lo_darkname, hi_darkname, binned, hv, segment)
     A.custom_dark_correction()
     A.calibrate_corrtags()
@@ -36,6 +36,9 @@ def acdc_parser():
     parser.add_argument("--binned", default=False,
                         action="store_true",
                         help="Toggle to indicate that supplied superdarks are binned")
+    parser.add_argument("-c", "--clobber", default=False,
+                        action="store_true",
+                        help="Toggle to overwrite any existing products")
 #    parser.add_argument("--hv", default=None,
 #                        help="HV to filter corrtags by")
 #    parser.add_argument("--segment", default=None,
@@ -43,7 +46,8 @@ def acdc_parser():
     args = parser.parse_args()
 #    run_acdc(args.indir, args.darkcorr_outdir, args.lo_darkname, args.hi_darkname, 
 #             args.binned, args.hv, args.segment)
-    run_acdc(indir=args.indir, darkcorr_outdir=args.darkcorr_outdir, binned=args.binned)
+    run_acdc(indir=args.indir, darkcorr_outdir=args.darkcorr_outdir, binned=args.binned, 
+             overwrite=args.clobber)
 
 
 if __name__ == "__main__":
