@@ -17,8 +17,8 @@ import datetime
 from astropy.io import fits
 import calcos
 
-from .predict_dark_level1 import predict_dark
-from .subtr_standard import subtract_dark
+from acdc.predict_dark_level1 import predict_dark
+from acdc.subtr_standard import subtract_dark
 
 # This only works for STScI internal folks
 LOCAL_DARKDIR = "/astro/sveash/cos_dark/final_superdarks"
