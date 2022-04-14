@@ -225,8 +225,16 @@ def c_stat(combined_dark, binned_sci, excluded_rows):
     return csum
 
 
+def check_existing(filename, overwrite=False):
+    if os.path.exists(filename) and overwrite is False:
+        print(f"WARNING: File {filename} already exists and overwrite is False, skipping...")
+        return True
+    else:
+        return False
+
+
 def predict_dark(corrtags, lo_darkname, hi_darkname, segment=None, hv=None, 
-                 outdir=".", binned=False):
+                 outdir=".", binned=False, overwrite=False):
     """Model the superdark for each input science corrtag.
 
     Use the active and quiescent superdarks of the
@@ -243,13 +251,14 @@ def predict_dark(corrtags, lo_darkname, hi_darkname, segment=None, hv=None,
             Default is current working directory.
         binned (Bool): (Optional) If True, indicates input superdarks are already
             binned. If False, input superdarks will be binned on the fly.
+        overwrite (Bool): If True, overwrite any pre-existing products.
     """
     if not os.path.exists(outdir):
         os.makedirs(outdir)
 
     if binned is False:
-        Lo = Superdark.from_asdf(lo_darkname)
-        Hi = Superdark.from_asdf(hi_darkname)
+        Lo = Superdark.from_asdf(lo_darkname, overwrite=overwrite)
+        Hi = Superdark.from_asdf(hi_darkname, overwrite=overwrite)
         lo_binnedname = lo_darkname.replace(".asdf", "_phabinned.asdf")
         hi_binnedname = hi_darkname.replace(".asdf", "_phabinned.asdf")
         Lo.screen_counts(verbose=False)
@@ -275,15 +284,19 @@ def predict_dark(corrtags, lo_darkname, hi_darkname, segment=None, hv=None,
     fig.colorbar(im, label="Counts")
     ax.set_title(f"{dark_segment} {dark_hv} quiescent superdark", size=25)
     figname = os.path.join(outdir, f"{dark_segment}_{dark_hv}_lo_superdark.png")
-    fig.savefig(figname, bbox_inches="tight")
-    print(f"Saved quiscent superdark figure: {figname}")
+    exists = check_existing(figname, overwrite)
+    if not exists:
+        fig.savefig(figname, bbox_inches="tight")
+        print(f"Saved quiscent superdark figure: {figname}")
     fig,ax = plt.subplots(1, 1, figsize=(20,8))
     im = ax.imshow(hi_dark, aspect="auto", origin="lower")
     fig.colorbar(im, label="Counts")
     ax.set_title(f"{dark_segment} {dark_hv} active superdark", size=25)
     figname = os.path.join(outdir, f"{dark_segment}_{dark_hv}_hi_superdark.png")
-    fig.savefig(figname, bbox_inches="tight")
-    print(f"Saved active superdark figure:{figname}")
+    exists = check_existing(figname, overwrite)
+    if not exists:
+        fig.savefig(figname, bbox_inches="tight")
+        print(f"Saved active superdark figure:{figname}")
     for item in corrtags:
         if segment is not None:
             file_segment = fits.getval(item, "segment")
@@ -317,8 +330,10 @@ def predict_dark(corrtags, lo_darkname, hi_darkname, segment=None, hv=None,
         fig.colorbar(im, label="Counts")
         figname = os.path.join(outdir, f"{rootname}_{segment}_binned_sci.png")
         ax.set_title(f"{rootname} Binned Science Image", size=25)
-        fig.savefig(figname, bbox_inches="tight")
-        print(f"Saved binned science image: {figname}")
+        exists = check_existing(figname, overwrite)
+        if not exists:
+            fig.savefig(figname, bbox_inches="tight")
+            print(f"Saved binned science image: {figname}")
         plt.clf()
         sci_exp = fits.getval(item, "exptime", 1)
         lo_exptime = lo_af["total_exptime"]
@@ -340,8 +355,10 @@ def predict_dark(corrtags, lo_darkname, hi_darkname, segment=None, hv=None,
         plt.ylim(-0.5, 4)
         plt.legend(loc="upper right")
         figname = os.path.join(outdir, f"{rootname}_{segment}_rows.png")
-        plt.savefig(figname, bbox_inches="tight")
-        print(f"Saved non-PSA/WCA rows: {figname}")
+        exists = check_existing(figname, overwrite)
+        if not exists:
+            plt.savefig(figname, bbox_inches="tight")
+            print(f"Saved non-PSA/WCA rows: {figname}")
         plt.clf()
 #        val_c = c_stat(combined_dark, binned_sci, excluded_rows)
 
@@ -355,16 +372,17 @@ def predict_dark(corrtags, lo_darkname, hi_darkname, segment=None, hv=None,
                        #bounds=[(1.e-8, None), (1.e-8, None)], options={'maxiter': 1000})
                        bounds=[(1.e-10, None), (1.e-10, None)], options={'maxiter': 1000})
         combined_dark1 = linear_combination([lo_dark, hi_dark], res.x)
-        print("!!!!")
-        print(res.x, lo_af["total_exptime"], hi_af["total_exptime"], sci_exp) 
+        #print(res.x, lo_af["total_exptime"], hi_af["total_exptime"], sci_exp) 
         sh = np.shape(combined_dark1)
         plt.imshow(combined_dark1, aspect="auto", origin="lower",
                    extent=[0, sh[1], 0, sh[0]])
         plt.colorbar(label="Counts/s")
         plt.title(f"{rootname} Combined Superdark", size=25)
         figname = os.path.join(outdir, f"{rootname}_{segment}_combined_dark.png")
-        plt.savefig(figname, bbox_inches="tight")
-        print(f"Saved combined dark image: {figname}")
+        exists = check_existing(figname, overwrite)
+        if not exists:
+            plt.savefig(figname, bbox_inches="tight")
+            print(f"Saved combined dark image: {figname}")
         plt.clf()
 
         # Use just one row outside of extraction regions
@@ -389,8 +407,10 @@ def predict_dark(corrtags, lo_darkname, hi_darkname, segment=None, hv=None,
             ax.legend(loc="upper right")
         fig.suptitle("Predicted vs. Actual Dark across non PSA/WCA rows", size=25)
         figname = os.path.join(outdir, f"{rootname}_{segment}_predicted_dark_bkgd.png")
-        plt.savefig(figname, bbox_inches="tight")
-        print(f"Saved actual vs predicted darks: {figname}")
+        exists = check_existing(figname, overwrite)
+        if not exists:
+            plt.savefig(figname, bbox_inches="tight")
+            print(f"Saved actual vs predicted darks: {figname}")
         plt.clf()
         
         # Use just one row outside of extraction regions
@@ -414,8 +434,10 @@ def predict_dark(corrtags, lo_darkname, hi_darkname, segment=None, hv=None,
             ax.set_ylim(bottom=-1)
         figname = os.path.join(outdir, f"{rootname}_{segment}_predicted_dark_sci.png")
         fig.suptitle(f"{rootname}: Predicted dark and actual science across PSA rows", size=25)
-        plt.savefig(figname, bbox_inches="tight")
-        print(f"Saved predicted dark vs science: {figname}")
+        exists = check_existing(figname, overwrite)
+        if not exists:
+            plt.savefig(figname, bbox_inches="tight")
+            print(f"Saved predicted dark vs science: {figname}")
         plt.clf()
 
 #       These two files below are used for sanity checks
@@ -424,15 +446,19 @@ def predict_dark(corrtags, lo_darkname, hi_darkname, segment=None, hv=None,
         noise["scaling"] = res.x
         outfile = os.path.join(outdir, f"{rootname}_noise.asdf")
         noise_af = asdf.AsdfFile(noise)
-        noise_af.write_to(outfile)
-        print(f"Wrote {outfile}")
+        exists = check_existing(outfile, overwrite)
+        if not exists:
+            noise_af.write_to(outfile)
+            print(f"Wrote {outfile}")
 
         signal = copy.deepcopy(lo_af.tree)
         signal[pha_str] = binned_sci[apertures["PSA"]]
         outfile = os.path.join(outdir, f"{rootname}_signal.asdf")
         signal_af = asdf.AsdfFile(signal)
-        signal_af.write_to(outfile)
-        print(f"Wrote {outfile}")
+        exists = check_existing(outfile, overwrite)
+        if not exists:
+            signal_af.write_to(outfile)
+            print(f"Wrote {outfile}")
 
         noise_comp = copy.deepcopy(lo_af.tree)
         noise_comp[pha_str] = combined_dark1
@@ -440,8 +466,10 @@ def predict_dark(corrtags, lo_darkname, hi_darkname, segment=None, hv=None,
         noise_comp["total_exptime"] = sci_exp
         outfile = os.path.join(outdir, f"{rootname}_noise_complete.asdf")
         noise_comp_af = asdf.AsdfFile(noise_comp)
-        noise_comp_af.write_to(outfile)
-        print(f"Wrote {outfile}")
+        exists = check_existing(outfile, overwrite)
+        if not exists:
+            noise_comp_af.write_to(outfile)
+            print(f"Wrote {outfile}")
 
     lo_af.close()
     hi_af.close()
@@ -464,7 +492,10 @@ if __name__ == "__main__":
     parser.add_argument("--binned", default=False,
                         action="store_true",
                         help="Toggle to indicate that supplied superdarks are binned")
+    parser.add_argument("-c", "--clobber", default=False,
+                        action="store_true",
+                        help="Toggle to overwrite any existing products")
     args = parser.parse_args()
     corrtags = glob.glob(os.path.join(args.datadir, "*corrtag*fits"))
 
-    predict_dark(corrtags, args.lo_darkname, args.hi_darkname, args.segment, args.hv, args.outdir, args.binned)
+    predict_dark(corrtags, args.lo_darkname, args.hi_darkname, args.segment, args.hv, args.outdir, args.binned, args.clobber)
