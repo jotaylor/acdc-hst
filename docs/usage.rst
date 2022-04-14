@@ -56,6 +56,7 @@ Many common queries have been pre-written for convenience.
 Some examples for queries on the SQLite database are below.
 
 **Return all dark events**
+
 Returns expstart, solar_flux, latitude, longitude, segment, hv, region, saa_distance,
 and all dark_pha<x> columns
 
@@ -65,6 +66,7 @@ and all dark_pha<x> columns
   df = all_darks()
 
 **Return filenames based on MJD, HV, and segment**
+
 Returns distinct filenames
 
 ::
@@ -73,6 +75,7 @@ Returns distinct filenames
   df = files_by_mjd(mjdstart, mjdend, segment, hv)
 
 **Return number of dark events based on MJD**
+
 Returns expstart, solar_flux, latitude, longitude, segment, hv, region, saa_distance,
 and all dark_pha<x> columns
 
@@ -84,6 +87,7 @@ and all dark_pha<x> columns
 Some examples for queries on the MySQL database are below.
 
 **Return all dark events for a single HV**
+
 Unless otherwise specified, returns all columns. 
 I.e. ``returncols`` is 
 ``[xcorr, ycorr, pha, mjd, hv, segment, filename, and proposid]``.
@@ -94,6 +98,7 @@ I.e. ``returncols`` is
   df = all_rows(hv, returncols)
 
 **Execute a SQL query**
+
 Execute a SQL command string.
 
 ::
@@ -103,6 +108,7 @@ Execute a SQL command string.
   # E.g. sql_query(163, "SELECT * FROM darkeventshv163 WHERE id=1")
 
 **Select rows based on column values**
+
 This is the equivalent of a ``WHERE col=val`` SQL command.
 Unless otherwise specified, returns all columns. 
 I.e. ``returncols`` is 
@@ -115,6 +121,7 @@ I.e. ``returncols`` is
 
 
 **Select rows based on a range**
+
 Possible range to query across are: MJD, X position, Y position, and PHA.
 
 ::
