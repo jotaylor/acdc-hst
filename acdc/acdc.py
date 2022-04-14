@@ -1,11 +1,12 @@
 """
 Another COS Dark Correction (ACDC)
-
-1. Superdarks must be created. (Let's assume this is already done)
-2. Bin superdarks and predict the dark level for each input corrtag.
-3. Use the predicted dark level to apply a custom dark correction.
-4. Calibrate the custom-corrected corrtags.
-5. Coadd the calibrated x1ds to increase SNR.
+Perform a custom dark correction on COS/FUV data.
+For each input science exposure, a quiescent and an active superdark 
+of the appropriate segment+HV combination are used to determine the dark rate 
+of the science exposure. A custom dark correction is then applied using
+this model dark rate, creating custom corrtag products. These corrtags are
+calibrated using CalCOS to create custom x1d files. x1d files should be coadded
+offline in order to increase SNR.
 """
 
 from collections import defaultdict

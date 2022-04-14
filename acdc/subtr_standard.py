@@ -1,12 +1,7 @@
 """
-Perform a custom dark subtraction on COS science data.
-
-Command-line arguments:
-    -d or --datadir
-        Path which contains corrtags and output from predict_dark_level1.py
-    -o or --outdir
-        Path to write output products.
+Perform a custom dark subtraction on COS corrtag files.
 """
+
 import argparse
 import copy
 import asdf
@@ -23,7 +18,17 @@ PHA_INCLUSIVE = [2, 23]
 PHA_INCL_EXCL = [2, 24]
 
 def subtract_dark(corrtags, datadir, fact=1, outdir="."):
-# fact changes resolution, 1=highest resolution, 8=lowest resolution. to keep at same input res., use 1
+    """Perform the custom dark correction.
+
+    Args:
+        corrtags (list or array-like): Input, unmodified science corrtags.
+        datadir (str): Directory that houses the modeled dark rates for each
+            input corrtag.
+        fact (int): Changes resolution, 1=highest resolution, 8=lowest resolution. 
+            To keep at same input resolution, use 1.
+        outdir (str): Directory where custom corrtags will be written.
+        """
+
     for item in corrtags:
         rootname = fits.getval(item, "rootname")
         pred_noise_file = os.path.join(datadir, rootname+"_noise_complete.asdf")
