@@ -4,12 +4,12 @@
 .. toctree::
    :hidden:
 
-   Home page <self>
-   API reference <_autosummary/acdc>
+   Home <self>
    What is ACDC? <about>
    Installation <install>
    Databases <databases>
    Usage <usage>
+   Packages & API <_autosummary/acdc>
 
 Another COS Background Correction (ACDC)
 ========================================
