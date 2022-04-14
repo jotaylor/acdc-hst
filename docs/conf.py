@@ -18,7 +18,7 @@ sys.path.insert(0, os.path.abspath('..'))
 # -- Project information -----------------------------------------------------
 
 project = 'acdc'
-copyright = '2022, Jo Taylor, Andrei Igoshev, Svea Hernandez'
+copyright = '2022, Jo Taylor, Svea Hernandez, Andrei Igoshev, Dave Sahnow'
 author = 'Jo Taylor'
 
 # The full version, including alpha/beta/rc tags
