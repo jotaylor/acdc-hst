@@ -2,6 +2,8 @@ import os
 os.environ["GOTO_NUM_THREADS"] = "2"
 os.environ["OMP_NUM_THREADS"] = "2"
 os.environ["OPENBLAS_NUM_THREADS"] = "2"
+os.environ["CRDS_SERVER_URL"] = "https://hst-crds.stsci.edu"
+import crds
 import datetime
 import argparse
 import glob
@@ -24,8 +26,8 @@ from acdc.database.query_cos_dark import files_by_mjd
 class Superdark():
     def __init__(self, hv, segment, mjdstarts, mjdends, dayint=100, bin_x=1,
                  bin_y=1, bin_pha=1, phastart=1, phaend=31, pha_bins=None, 
-                 gsagtab="/astro/sveash/cos_dark/5b919208l_gsag.fits",
-                 bpixtab="/astro/sveash/cos_dark/5b91920bl_bpix.fits", 
+                 gsagtab=None,
+                 bpixtab=None, 
                  region="inner", outfile=None,
                  outdir=".", xylimits=None):
         """
@@ -53,7 +55,11 @@ class Superdark():
         self.get_pha_bins()
 
         self.superdarks = []
+        if gsagtab is None:
+            gsagtab = self.get_reffile("gsagtab")
         self.gsagtab = gsagtab
+        if bpixtab is None:
+            bpixtab = self.get_reffile("bpixtab")
         self.bpixtab = bpixtab
         self.outfile = outfile
         self.outdir = outdir
@@ -89,6 +95,27 @@ class Superdark():
         af.close()
         return self
 
+
+    def get_reffile(self, filetype):
+        now = datetime.datetime.now()
+        current_pmap = crds.get_default_context()
+        config = {"INSTRUME": "COS",
+                  "CENWAVE": 1291,
+                  "DETECTOR": "FUV",
+                  "DATE-OBS": now.strftime("%Y-%m-%d"),
+                  "TIME-OBS": "00:00:00"}
+        crds_results = crds.getrecommendations(parameters=config, reftypes=[filetype],
+                                               context=current_pmap, observatory="hst")
+        reffile0 = crds_results[filetype]
+        try:
+            lref = os.environ["lref"]
+        except KeyError as e:
+            print(e.message)
+            print("You must define the $lref environment variable- this is where all COS reference files are located")
+        reffile = os.path.join(lref, reffile0)
+        
+        return reffile
+    
 
     def get_pha_bins(self):
         if self.pha_bins is None:
