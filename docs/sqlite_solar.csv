@@ -1,0 +1,3 @@
+﻿column,type,description
+time,Float,MJD date of solar flux measurement
+flux,Float,10.7cm radio flux

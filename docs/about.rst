@@ -1,20 +1,7 @@
-..
-   Note: Items in this toctree form the top-level navigation. See `api.rst` for the `autosummary` directive, and for why `api.rst` isn't called directly.
+What is ACDC?
+=======================
 
-.. toctree::
-   :hidden:
-
-   Home page <self>
-   API reference <_autosummary/acdc>
-   What is ACDC? <about>
-   Installation <install>
-   Databases <databases>
-   Usage <usage>
-
-Another COS Background Correction (ACDC)
-========================================
-
-**Why another COS background correction?**
+Do we really need **A**\ nother **C**\ OS **D**\ ark **C**\ orrection?
 
 COS spectroscopic science in the extreme UV regime is limited by detector background noise. The COS pipeline, calcos does not perform an optimized background subtraction. In order to achieve the maximum scientific value of the COS instrument, we have a designed a custom characterization and correction of the COS FUV dark rate.
 
