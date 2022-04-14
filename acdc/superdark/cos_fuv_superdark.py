@@ -26,10 +26,8 @@ from acdc.database.query_cos_dark import files_by_mjd
 class Superdark():
     def __init__(self, hv, segment, mjdstarts, mjdends, dayint=100, bin_x=1,
                  bin_y=1, bin_pha=1, phastart=1, phaend=31, pha_bins=None, 
-                 gsagtab=None,
-                 bpixtab=None, 
-                 region="inner", outfile=None,
-                 outdir=".", xylimits=None):
+                 gsagtab=None, bpixtab=None, region="inner", outfile=None,
+                 outdir=".", xylimits=None, overwrite=False):
         """
         To keep things consistent, start and stop range are defined the same
         as within python- start is inclusive but stop is EXCLUSIVE. E.g.
@@ -72,7 +70,7 @@ class Superdark():
 
 
     @classmethod
-    def from_asdf(cls, superdark):
+    def from_asdf(cls, superdark, overwrite=False):
         af = asdf.open(superdark)
         if "pha_bins" in af.keys():
             pha_bins = copy.deepcopy(af["pha_bins"])
@@ -86,6 +84,7 @@ class Superdark():
         self.outfile = superdark
         self.total_exptime = af["total_exptime"]
         self.total_files = af["total_files"]
+        self.overwrite = overwrite
 
         self.pha_images = {}
         for i in range(len(self.pha_bins)-1):
@@ -372,7 +371,10 @@ class Superdark():
             now = nowdt.strftime("%d%b%Y")
             outfile = self.outfile.replace(".asdf", f"binned_{now}.asdf")
         self.outfile = outfile
-        
+        if os.path.exists(outfile) and self.overwrite is False:
+            print(f"WARNING: Output superdark {outfile} already exists and overwrite is False, exiting...")
+            return
+
         sh = np.shape(self.superdarks[0])
         xdim = sh[1]
         ydim = sh[0]
