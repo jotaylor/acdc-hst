@@ -1,5 +1,4 @@
 """
-Another COS Dark Correction (ACDC)
 Perform a custom dark correction on COS/FUV data.
 For each input science exposure, a quiescent and an active superdark 
 of the appropriate segment+HV combination are used to determine the dark rate 
@@ -39,7 +38,7 @@ class Acdc():
     """
     
     def __init__(self, indir, darkcorr_outdir, x1d_outdir=None, binned=False, 
-                 superdark_dir=None):
+                 superdark_dir=None, overwrite=False):
         """
         Args:
             indir (str): Input directory that houses corrtags to correct.
@@ -49,6 +48,7 @@ class Acdc():
             superdark_dir (str): Location of superdarks. 
         """
 
+        self.overwrite = overwrite
         self.indir = indir
         if superdark_dir is None:
             try:
@@ -154,8 +154,10 @@ class Acdc():
             lo_darkname = self.dark_dict[seg_hv]["quiescent"]
             hi_darkname = self.dark_dict[seg_hv]["active"]
             predict_dark(corrtags, lo_darkname, hi_darkname, 
-                         outdir=self.darkcorr_outdir, binned=self.binned)
-            subtract_dark(corrtags, self.darkcorr_outdir, outdir=self.darkcorr_outdir)
+                         outdir=self.darkcorr_outdir, binned=self.binned,
+                         overwrite=self.overwrite)
+            subtract_dark(corrtags, self.darkcorr_outdir, outdir=self.darkcorr_outdir, 
+                          overwrite=self.overwrite)
         self.custom_corrtags = glob.glob(os.path.join(self.darkcorr_outdir, "corrected*corrtag*fits"))
 
     
@@ -167,6 +169,14 @@ class Acdc():
         BACKCORR=OMIT.
         """
 
+        for item in self.custom_corrtags:
+            with fits.open(item, mode="update") as hdulist:
+                hdr0 = hdulist[0].header
+                hdr0.set("xtrctalg", "BOXCAR")
+                hdr0.set("backcorr", "OMIT")
+                hdr0.set("trcecorr", "OMIT")
+                hdr0.set("algncorr", "OMIT")
+
         calibrated = []
         for item in self.custom_corrtags:
             if "_corrtag_a" in item:
@@ -175,14 +185,7 @@ class Acdc():
                 other = item.replace("_corrtag_b", "_corrtag_a")
             if other in calibrated:
                 continue
-            with fits.open(item, mode="update") as hdulist:
-                hdr0 = hdulist[0].header
-                hdr0.set("xtrctalg", "BOXCAR")
-                hdr0.set("backcorr", "OMIT")
-                hdr0.set("trcecorr", "OMIT")
-                hdr0.set("algncorr", "OMIT")
             calcos.calcos(item, outdir=self.x1d_outdir)
             calibrated.append(item)
-
-    
+            calibrated.append(other)
 
