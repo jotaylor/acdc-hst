@@ -1,3 +1,4 @@
+import datetime
 import argparse
 from matplotlib import pyplot as plt
 import numpy as np
@@ -8,14 +9,12 @@ import pandas as pd
 
 # Eventually put Svea's plots here
 
-def compare_x1ds(targ, save=True):
-#def compare_x1ds(custom_txt, default_txt, targ, save=True):
-    custom_txt = glob.glob(f"custom_012722_{targ}*txt")[0]
-    #custom_txt = glob.glob(f"custom_011222_{targ}*txt")[0]
-    default_txt = glob.glob(f"default_011222_{targ}*txt")[0]
-    custom = pd.read_csv(custom_txt, names=["i", "wl", "flux", "err"], 
+def compare_x1ds(custom_coadd_txt, default_coadd_txt, targ=None, outfile=None, 
+                 save=True):
+
+    custom = pd.read_csv(custom_coadd_txt, names=["i", "wl", "flux", "err"], 
                             header=None, delim_whitespace=True)   
-    default = pd.read_csv(default_txt, names=["i", "wl", "flux", "err"], 
+    default = pd.read_csv(default_coadd_txt, names=["i", "wl", "flux", "err"], 
                             header=None, delim_whitespace=True)
     
     fig, axes0 = plt.subplots(3, 1, figsize=(20, 16), sharex=True)
@@ -45,16 +44,31 @@ def compare_x1ds(targ, save=True):
     plt.tight_layout()
 
     if save is True:
-        outfile = f"{targ}_x1d_comp.png"
+        if outfile is None:
+            if targ is not None:
+                outfile = f"{targ}_x1d_comp.png"
+            else:
+                now = datetime.datetime.now()
+                outfile = f"{now.strftime('%d%b%Y_%H%M%S')}_x1d_comp.png"
         plt.savefig(outfile, )
         print(f"Saved {outfile}")
+    else:
+        print("\nClose figure when finished")
+        plt.show()
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
-#    parser.add_argument(dest="custom_txt")
-#    parser.add_argument(dest="default_txt")
-    parser.add_argument(dest="targ")
+    parser.add_argument("-c", "--custom",
+                        help="Coadd txt file for custom dark-corrected data")
+    parser.add_argument("-d", "--default",
+                        help="Coadd txt file for default dark-corrected data")
+    parser.add_argument("-t", "--targ", default=None,
+                        help="Name of target being compared")
+    parser.add_argument("-o", "--outfile", default=None,
+                        help="Name of output figure")
+    parser.add_argument("--interact", default=False, action="store_true",
+                        help="If True, open plot interactive window and do not save figure")
     args = parser.parse_args()
+    save = not args.interact
 
-#    compare_x1ds(args.custom_txt, args.default_txt, args.targ)
-    compare_x1ds(args.targ)
+    compare_x1ds(args.custom, args.default, args.targ, args.outfile, save)
