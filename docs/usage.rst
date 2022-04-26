@@ -5,13 +5,28 @@ The ACDC package has many uses- custom dark correction, data analysis,
 database creation and querying, and superdark creation. Some common use
 examples are provided below.
 
+.. _download_darks:
+
+Downloading Superdarks
+----------------------
+To run the custom dark correction, you must have the ACDC superdarks.
+These darks can be obtained by running the download script like so:
+
+::
+
+  download_superdarks <destdir>
+
+Where ``<destdir>`` is the directory downloaded superdarks will be placed in.
+You must define the ACDC_SUPERDARKS environment variable as well (see
+:ref:`env_vars`).
+
 Custom Dark Correction
 ----------------------
 
-To run the custom dark correction, you must have the ACDC superdarks.
-TODO- document where to obtain these files.
+The custom dark correction should be run on input corrtag files. 
+At a minimum, the input and output directories should be specified when
+running ``acdc``:
 
-Now, simply run by executing the following command:
 
 ::
 
@@ -19,6 +34,16 @@ Now, simply run by executing the following command:
 
 Where ``<indir>`` is the input directory with corrtags you wish to calibrate,
 and ``<outdir>`` is the directory where custom-calibrated products should be written.
+
+Additional run-time arguments are:
+
+::
+
+  --x1d_outdir     Directory to write 1D spectra to (if not specified, the runtime will be used)
+  --binned         If toggled, specifies that binned superdarks should be used 
+  -c or --clobber  If toggled, will overwrite any existing products
+  --hv             If specified, only corrtags of this HV will be processed
+  --segment        If specified, only corrtags of this segment will be processed
 
 Data Analysis
 -------------
