@@ -62,6 +62,10 @@ environment variable is defined as:
 
 ::
 
-export ACDC_SUPERDARKS=<path>
+  export ACDC_SUPERDARKS=<path>
 
 where ``<path>`` is the superdark directory.
+
+If defined on the command line, these variables must be defined in every terminal.
+You may want to consider adding the definitions to your local .bashrc, .bash_profile,
+or similar file.
