@@ -6,7 +6,7 @@
 
    Home <self>
    What is ACDC? <about>
-   Installation <install>
+   Installation and Setup <install>
    Databases <databases>
    Usage <usage>
    Packages & API <_autosummary/acdc>
