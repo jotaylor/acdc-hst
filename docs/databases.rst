@@ -4,6 +4,8 @@ Databases
 Currently, two databases are maintained in order to characterize the 
 FUV dark rate.
 
+.. _sqlite_db:
+
 The SQLite Database, ``cos_dark``
 -------------------------------
 
