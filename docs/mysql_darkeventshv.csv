@@ -1,0 +1,10 @@
+﻿column,type,description
+id,Integer,Primary key ID number
+xcorr,Float,XCORR location of dark event
+ycorr,Float,YCORR location of dark event
+pha,Integer,PHA value of dark event
+mjd,"Float(11,5)",MJD time of dark event
+hv,Integer,High Voltage of corresponding dark exposure
+segment,String(5),Segment of corresponding dark exposure
+filename,String(30),Filename of corresponding dark exposure
+proposid,Integer,Proposal ID of corresponding dark exposure

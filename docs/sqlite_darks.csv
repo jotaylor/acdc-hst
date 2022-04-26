@@ -1,0 +1,18 @@
+﻿column,type,description
+id,Integer,Primary key ID number
+filename,String,Filename e.g. ipppssoot_corrtag_a.fits
+segment,String,COS FUV segment 
+expstart,Float,MJD start time
+exptime,Float,Exposure time [s]
+hv,Integer,High Voltage
+latitude,Float,Observatory latitude
+longitude,Float,Observatory longitude
+region,String,Region of interest on segment
+region_area,String,Area of region
+xcorr_min,Integer,Region starting XCORR
+xcorr_max,Integer,Region ending XCORR
+ycorr_min,Integer,Region staring YCORR
+ycorr_max,Integer,Region ending YCORR
+solar_flux,Float,Interpolated solar flux at expstart
+fileloc,String,STScI disk location of file
+dark_pha<x>,Integer,Total dark counts over region for PHA <x> 0 through 31
