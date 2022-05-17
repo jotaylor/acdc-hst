@@ -29,15 +29,17 @@ For SSH connection: `git clone git@github.com:spacetelescope/cos_dark.git`
 For HTTPS connection: `git clone https://github.com/spacetelescope/cos_dark.git`
 
 #### Installing into a fresh environment
-`cd` into the cloned repository, and execute:
+`cd` into the cloned repository and execute:
 
 ```
-conda create -n <env_name> python
+conda create -n <env_name> python=<version>
 conda activate <env_name>
 pip install .
 ```
 
 where `<env_name>` is the name of the environment that will be created.
+You need at least python version 3.9, so fill in `<version>` with whatever
+version above >=3.9 that you want.
 This only installs dependencies required by the `acdc` packae. You will
 need to install anything else manually, e.g.:
 
