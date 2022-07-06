@@ -186,7 +186,7 @@ def get_excluded_rows(segment, cenwave, lp, binning):
     excluded_rows = np.array(())
     apertures = {"PSA": None, "WCA": None}
     for aperture in apertures:
-        aperture_regions = get_aperture_region(cenwave=cenwave, aperture=aperture)
+        aperture_regions = get_aperture_region(cenwave=cenwave, aperture=aperture, segments=[segment])
         box = aperture_regions[segment][f"lp{lp}_{aperture.lower()}_{cenwave}"]
         xmin0, xmax0, ymin0, ymax0 = box
         xsnew, ysnew = bin_coords(np.array([xmin0, xmax0]), np.array([ymin0, ymax0]), binning["bin_x"], binning["bin_y"], binning["xstart"], binning["ystart"], make_int=True)

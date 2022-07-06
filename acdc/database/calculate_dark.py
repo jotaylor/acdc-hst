@@ -176,7 +176,7 @@ def parse_solar_files(files):
                                                               
     return np.array(date), np.array(flux)                     
 
-def get_aperture_region(cenwave=1291, aperture="PSA"):
+def get_aperture_region(cenwave=1291, aperture="PSA", segments=["FUVA", "FUVB"]):
     """
     Determine the extraction box for a given cenwave (1291 by default) and
     aperture (PSA by default).
@@ -211,7 +211,7 @@ def get_aperture_region(cenwave=1291, aperture="PSA"):
 
     apertures = {"FUVA": {}, "FUVB": {}}
     # For each LP, determine the appropriate xtractab as returned by CRDS on the fly.
-    for segment in ["FUVA", "FUVB"]:
+    for segment in segments:
 #        for life_adj, date_obs in zip([1, 2, 3, 4], ["2010-01-01", "2014-01-01", "2016-01-01", "2018-01-01"]):
         for life_adj in [1, 2, 3, 4, 5]:
             crds_1dx = crds.getrecommendations(parameters={"INSTRUME": "COS", 

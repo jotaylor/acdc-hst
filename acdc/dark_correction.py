@@ -8,6 +8,7 @@ calibrated using CalCOS to create custom x1d files. x1d files should be coadded
 offline in order to increase SNR.
 """
 
+import sys
 from collections import defaultdict
 import argparse
 import os
@@ -54,13 +55,17 @@ class Acdc():
             try:
                 superdark_dir = os.environ["ACDC_SUPERDARKS"]
             except KeyError as e:
-                print(e.message)
-                print("You must define the $ACDC_SUPERDARKS environment variable- this is where all superdarks are located")
+                print("ERROR: You must define the $ACDC_SUPERDARKS environment variable- this is where all superdarks are located")
+                print("Exiting")
+                sys.exit()
         self.superdark_dir = superdark_dir
 
         self.darkcorr_outdir = darkcorr_outdir
         self.binned = binned
-        self.segment = segment.upper()
+        if segment is not None:
+            self.segment = segment.upper()
+        else:
+            self.segment = segment
         self.hv = hv 
         now = datetime.datetime.now()
         self.x1d_outdir = os.path.join(darkcorr_outdir, f"cal_{now.strftime('%d%b%Y')}")

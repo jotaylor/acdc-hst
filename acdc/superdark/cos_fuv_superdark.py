@@ -372,7 +372,7 @@ class Superdark():
             outfile = self.outfile.replace(".asdf", f"binned_{now}.asdf")
         self.outfile = outfile
         if os.path.exists(outfile) and self.overwrite is False:
-            print(f"WARNING: Output superdark {outfile} already exists and overwrite is False, exiting...")
+            print(f"WARNING: Output superdark {outfile} already exists and overwrite is False, skipping...")
             return
 
         sh = np.shape(self.superdarks[0])
