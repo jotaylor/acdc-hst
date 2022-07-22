@@ -449,7 +449,7 @@ def predict_dark(corrtags, lo_darkname, hi_darkname, segment=None, hv=None,
         noise = copy.deepcopy(lo_af.tree)
         noise[pha_str] = combined_dark1[apertures["PSA"]]
         noise["scaling"] = res.x
-        outfile = os.path.join(outdir, f"{rootname}_noise.asdf")
+        outfile = os.path.join(outdir, f"{rootname}_{segment}_noise.asdf")
         noise_af = asdf.AsdfFile(noise)
         exists = check_existing(outfile, overwrite)
         if not exists:
@@ -458,7 +458,7 @@ def predict_dark(corrtags, lo_darkname, hi_darkname, segment=None, hv=None,
 
         signal = copy.deepcopy(lo_af.tree)
         signal[pha_str] = binned_sci[apertures["PSA"]]
-        outfile = os.path.join(outdir, f"{rootname}_signal.asdf")
+        outfile = os.path.join(outdir, f"{rootname}_{segment}_signal.asdf")
         signal_af = asdf.AsdfFile(signal)
         exists = check_existing(outfile, overwrite)
         if not exists:
@@ -469,7 +469,7 @@ def predict_dark(corrtags, lo_darkname, hi_darkname, segment=None, hv=None,
         noise_comp[pha_str] = combined_dark1
         #combined_exptime = (lo_exptime * res.x[0]) + (hi_exptime * res.x[1])
         noise_comp["total_exptime"] = sci_exp
-        outfile = os.path.join(outdir, f"{rootname}_noise_complete.asdf")
+        outfile = os.path.join(outdir, f"{rootname}_{segment}_noise_complete.asdf")
         noise_comp_af = asdf.AsdfFile(noise_comp)
         exists = check_existing(outfile, overwrite)
         if not exists:
