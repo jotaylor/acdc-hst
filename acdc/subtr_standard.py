@@ -46,7 +46,8 @@ def subtract_dark(corrtags, datadir, fact=1, outdir=".", overwrite=False):
             os.makedirs(outdir)
         
         rootname = fits.getval(item, "rootname")
-        pred_noise_file = os.path.join(datadir, rootname+"_noise_complete.asdf")
+        segment = fits.getval(item, "segment")
+        pred_noise_file = os.path.join(datadir, f"{rootname}_{segment}_noise_complete.asdf")
         pred_noise_af = asdf.open(pred_noise_file)
         pha_str = f"pha{PHA_INCL_EXCL[0]}-{PHA_INCL_EXCL[1]}"
         pred_noise = pred_noise_af[pha_str]
