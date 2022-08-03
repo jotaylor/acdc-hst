@@ -176,7 +176,7 @@ def parse_solar_files(files):
                                                               
     return np.array(date), np.array(flux)                     
 
-def get_aperture_region(cenwave=1291, aperture="PSA", segments=["FUVA", "FUVB"]):
+def get_aperture_region(cenwave=1291, aperture="PSA", segments=["FUVA", "FUVB"], life_adj=[1, 2, 3, 4, 5, 6]):
     """
     Determine the extraction box for a given cenwave (1291 by default) and
     aperture (PSA by default).
@@ -192,7 +192,9 @@ def get_aperture_region(cenwave=1291, aperture="PSA", segments=["FUVA", "FUVB"])
             and the value is a tuple with (xmin, xmax, ymin, ymax) representing
             the cenwave extraction box for that segment and LP combo.
     """    
-    
+
+    if isinstance(life_adj, int):
+        life_adj = [life_adj] 
     today0 = datetime.datetime.now()
     today = today0.strftime("%Y-%m-%d")
 
@@ -213,9 +215,9 @@ def get_aperture_region(cenwave=1291, aperture="PSA", segments=["FUVA", "FUVB"])
     # For each LP, determine the appropriate xtractab as returned by CRDS on the fly.
     for segment in segments:
 #        for life_adj, date_obs in zip([1, 2, 3, 4], ["2010-01-01", "2014-01-01", "2016-01-01", "2018-01-01"]):
-        for life_adj in [1, 2, 3, 4, 5]:
+        for lp in life_adj:
             crds_1dx = crds.getrecommendations(parameters={"INSTRUME": "COS", 
-                                "DETECTOR": "FUV", "LIFE_ADJ": life_adj, 
+                                "DETECTOR": "FUV", "LIFE_ADJ": lp, 
                                 "OBSTYPE": "SPECTROSCOPIC", 
                                 "DATE-OBS": today, "TIME-OBS": "00:00:00"},
                             reftypes=["xtractab"], context=current_pmap, observatory="hst")
@@ -233,7 +235,7 @@ def get_aperture_region(cenwave=1291, aperture="PSA", segments=["FUVA", "FUVB"])
             y_upper = round(max(y_center + aperture_data["height"][0] / 2))
             y_lower = round(min(y_center - aperture_data["height"][0] / 2))
     
-            lpkey = f"lp{life_adj}_{aperture.lower()}_{cenwave}"
+            lpkey = f"lp{lp}_{aperture.lower()}_{cenwave}"
 
             # This  matches the format already defined in measure_darkrate()
             # i.e. xmin, xmax, ymin, ymax 
