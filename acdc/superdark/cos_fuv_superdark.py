@@ -8,16 +8,14 @@ import datetime
 import argparse
 import glob
 import copy
-
 import asdf
 from astropy.io import fits
 from astropy.table import Table
 from calcos import ccos
-
+import numpy.ma as ma
 import numpy as np
 import pandas as pd
 import dask
-
 import matplotlib.pyplot as plt
 from matplotlib.backends.backend_pdf import PdfPages
 
@@ -227,13 +225,14 @@ class Superdark():
         self.total_files = len(dark_df["fileloc"].values)
 
         # Write out ASDF file
-        self.write_superdark(self.pha_images)
+        self.write_superdark()
         runend = datetime.datetime.now()
         print("End time: {}".format(runend))
         print("Total time: {}".format(runend-runstart))
 
     
-    def write_superdark(self, data_dict):
+    def write_superdark(self, user_outfile=None):
+        data_dict = self.pha_images
         data_dict["xstart"] = self.xstart
         data_dict["ystart"] = self.ystart
         data_dict["phastart"] = self.phastart
@@ -252,8 +251,10 @@ class Superdark():
         data_dict["total_files"] = self.total_files
         af = asdf.AsdfFile(data_dict)
         today = datetime.datetime.now().strftime("%d%b%y-%H:%M:%S")
-        if self.outfile is None:
+        if self.outfile is None and user_outfile is None:
             self.outfile = f"superdark_{self.segment}_{self.hv}_{today}.asdf"
+        elif self.outfile is None and user_outfile is not None:
+            self.outfile = user_outfile
         af.write_to(self.outfile)
         print(f"Wrote {self.outfile}")
 
@@ -346,8 +347,8 @@ class Superdark():
 
         return final_image
 
-    
-    def bin_superdark(self, bin_x, bin_y, pha_bins=None, outfile=None, verbose=True):
+
+    def bin_superdark(self, bin_x, bin_y, pha_bins=None, outfile=None, verbose=True, writefile=True):
         
         # Bin across PHA
         self.pha_images = {}
@@ -371,7 +372,7 @@ class Superdark():
             now = nowdt.strftime("%d%b%Y")
             outfile = self.outfile.replace(".asdf", f"binned_{now}.asdf")
         self.outfile = outfile
-        if os.path.exists(outfile) and self.overwrite is False:
+        if writefile is True and self.overwrite is False and os.path.exists(outfile):
             print(f"WARNING: Output superdark {outfile} already exists and overwrite is False, skipping...")
             return
 
@@ -433,10 +434,11 @@ class Superdark():
             pdf.savefig(fig)
         pdf.close()
         print(f"Wrote {pdffile}")
+        
+        if writefile is True:
+            self.write_superdark()
 
-        self.write_superdark(self.pha_images)
-
-    def screen_counts(self, verbose=True, sigma=10):
+    def screen_counts(self, verbose=True, sigma=10, mask=False):
         for i,sd in enumerate(self.superdarks):
             phastart = self.pha_bins[i]
             phaend = self.pha_bins[i+1]
@@ -448,9 +450,14 @@ class Superdark():
             if len(bad[0]) == 0:
                 continue
             if verbose is True:
-                print(f"{len(bad[0])} pixels have counts above {sigma}sigma, zeroing out now...")
-            sd[bad] = 0.0
-            self.superdarks[i] = sd
-            self.pha_images[key] = sd
+                print(f"{len(bad[0])} pixels have counts above {sigma}sigma for {key}")
+            if mask is False:
+                sd[bad] = 0.0
+                self.superdarks[i] = sd
+                self.pha_images[key] = sd
+            else:
+                sd_masked = ma.masked_greater_equal(sd, avg+sigma_cutoff)
+                self.superdarks[i] = sd_masked
+                self.pha_images[key] = sd_masked
 
 
