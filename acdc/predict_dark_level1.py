@@ -51,7 +51,9 @@ PHA_INCL_EXCL = [2, 24]
 COLORS = ["#1b9e77", "#d95f02", "#7570b3", "#e7298a", "#66a61e", "#a6cee3", 
           "#1f78b4", "#b2df8a", "#33a02c", "#fb9a99", "#e31a1c", "#fdbf6f", 
           "#ff7f00", "#cab2d6", "#6a3d9a", "#ffff99", "#b15928", "#a6cee3"]
-
+# Lyman alpha wavelength limits
+LYA_LO = 1213.67 # Angstroms
+LYA_HI = 1217.67 # Angstroms
 
 def fun_opt(coeffs, darks, binned_sci, excluded_rows):
     """TODO- fill in
@@ -128,7 +130,7 @@ def get_binning_pars(af):
 
     return binning
 
-def bin_science(corrtag, b, fact=1):
+def bin_science(corrtag, b, segment, cenwave, lp, fact=1, exclude_lya=False):
     """
     Given a corrtag with lists of events as a function of X, Y, and PHA,
     bin the data into an image using the same bin sizes as the superdark.
@@ -141,16 +143,30 @@ def bin_science(corrtag, b, fact=1):
         binned (array): Binned science image.
         nevents (array): Number of events in each binned pixel.
     """
-
+    
+    aperture = "PSA"
+    aperture_regions = get_aperture_region(cenwave=cenwave, aperture=aperture, segments=[segment], life_adj=[lp])
+    box = aperture_regions[segment][f"lp{lp}_{aperture.lower()}_{cenwave}"]
+    xmin0, xmax0, ymin0, ymax0 = box
     data = fits.getdata(corrtag)
-    phainds = np.where((data["pha"] >= b["phastart"]) & 
-                       (data["pha"] < b["phaend"]))
-    phadata = data[phainds]
-    innerinds = np.where((phadata["xcorr"] > b["xstart"]) &
-                         (phadata["xcorr"] < b["xend"]) & 
-                         (phadata["ycorr"] > b["ystart"]) &
-                         (phadata["ycorr"] < b["yend"]))
-    filtered = phadata[innerinds]
+    inds0 = np.where(
+                     (data["pha"] >= b["phastart"]) & 
+                     (data["pha"] < b["phaend"]) &
+                     (data["xcorr"] > b["xstart"]) &
+                     (data["xcorr"] < b["xend"]) & 
+                     (data["ycorr"] > b["ystart"]) &
+                     (data["ycorr"] < b["yend"]))
+    filtered0 = data[inds0]
+    if exclude_lya is True:
+        print(f"Excluding pixels affected by Lyman Alpha airglow") 
+        bad = (filtered0["wavelength"] > LYA_LO) &\
+              (filtered0["wavelength"] < LYA_HI)
+        #      (filtered0["ycorr"] > ymin0) &\
+        #      (filtered0["ycorr"] < ymax0)
+        inds1 = ~bad
+        filtered = filtered0[inds1]
+    else:
+        filtered = filtered0
 
     ydim = int((b["yend"] - b["ystart"]) / b["bin_y"])
     xdim = int((b["xend"] - b["xstart"]) / b["bin_x"])
@@ -234,7 +250,7 @@ def check_existing(filename, overwrite=False):
 
 
 def predict_dark(corrtags, lo_darkname, hi_darkname, segment=None, hv=None, 
-                 outdir=".", binned=False, overwrite=False):
+                 outdir=".", binned=False, overwrite=False, exclude_lya=False):
     """Model the superdark for each input science corrtag.
 
     Use the active and quiescent superdarks of the
@@ -265,8 +281,13 @@ def predict_dark(corrtags, lo_darkname, hi_darkname, segment=None, hv=None,
         hi_binnedname = os.path.join(outdir, hi_binnedname0)
         Lo.screen_counts(verbose=False)
         Hi.screen_counts(verbose=False)
-        Lo.bin_superdark(RESEL[0]*2, RESEL[1]*2, pha_bins=PHA_INCL_EXCL, outfile=lo_binnedname)
-        Hi.bin_superdark(RESEL[0]*2, RESEL[1]*2, pha_bins=PHA_INCL_EXCL, outfile=hi_binnedname)
+        Lo.bin_superdark(RESEL[0]*2, RESEL[1]*2, pha_bins=PHA_INCL_EXCL,
+                         writefile=False)
+        Hi.bin_superdark(RESEL[0]*2, RESEL[1]*2, pha_bins=PHA_INCL_EXCL,
+                         writefile=False) 
+        Lo.screen_counts(verbose=False, sigma=5, mask=True)
+        Hi.screen_counts(verbose=False, sigma=5, mask=True)
+        Lo.write_superdark
     else:
         lo_binnedname = lo_darkname
         hi_binnedname = hi_darkname
@@ -319,11 +340,14 @@ def predict_dark(corrtags, lo_darkname, hi_darkname, segment=None, hv=None,
         excluded_rows, apertures = get_excluded_rows(segment, cenwave, lp, binning)
         rootname0 = fits.getval(item, "rootname")
         rootname = rootname0.lower()
-        binned_sci, nevents = bin_science(item, binning)
-        vmin = np.mean(binned_sci) - 1*np.std(binned_sci)
-        if vmin < 0:
-            vmin = 0
-        vmax = np.mean(binned_sci) + 1*np.std(binned_sci)
+        binned_sci, nevents = bin_science(item, binning, segment, cenwave, lp, exclude_lya=exclude_lya)
+        print(binning)
+#        vmin = np.mean(binned_sci) - 1*np.std(binned_sci)
+#        if vmin < 0:
+#            vmin = 0
+#        vmax = np.mean(binned_sci) + 1*np.std(binned_sci)
+        vmin = 0
+        vmax = 10
         sh = np.shape(binned_sci)
         im = ax.imshow(binned_sci, aspect="auto", origin="lower", 
                 vmin=vmin, vmax=vmax, extent=[0, sh[1], 0, sh[0]])
@@ -334,7 +358,7 @@ def predict_dark(corrtags, lo_darkname, hi_darkname, segment=None, hv=None,
         ax.legend(loc="upper right")
         fig.colorbar(im, label="Counts")
         figname = os.path.join(outdir, f"{rootname}_{segment}_binned_sci.png")
-        ax.set_title(f"{rootname} Binned Science Image", size=25)
+        ax.set_title(f"{rootname} {segment} Binned Science Image", size=25)
         exists = check_existing(figname, overwrite)
         if not exists:
             fig.savefig(figname, bbox_inches="tight")
@@ -410,7 +434,7 @@ def predict_dark(corrtags, lo_darkname, hi_darkname, segment=None, hv=None,
             ax.set_xlabel("X")
             ax.set_ylabel("Counts")
             ax.legend(loc="upper right")
-        fig.suptitle("Predicted vs. Actual Dark across non PSA/WCA rows", size=25)
+        fig.suptitle("Predicted vs. Actual Dark across non PSA/WCA rows\n{rootname} {segment}", size=25)
         figname = os.path.join(outdir, f"{rootname}_{segment}_predicted_dark_bkgd.png")
         exists = check_existing(figname, overwrite)
         if not exists:
@@ -438,7 +462,7 @@ def predict_dark(corrtags, lo_darkname, hi_darkname, segment=None, hv=None,
             ax.legend(loc="upper right")
             ax.set_ylim(bottom=-1)
         figname = os.path.join(outdir, f"{rootname}_{segment}_predicted_dark_sci.png")
-        fig.suptitle(f"{rootname}: Predicted dark and actual science across PSA rows", size=25)
+        fig.suptitle("Predicted vs. Actual Dark across PSA rows\n{rootname} {segment}", size=25)
         exists = check_existing(figname, overwrite)
         if not exists:
             plt.savefig(figname, bbox_inches="tight")
@@ -479,28 +503,3 @@ def predict_dark(corrtags, lo_darkname, hi_darkname, segment=None, hv=None,
     lo_af.close()
     hi_af.close()
 
-
-if __name__ == "__main__":
-    parser = argparse.ArgumentParser()
-    parser.add_argument("-d", "--datadir",
-                        help="Path to science corrtags")
-    parser.add_argument("--hv", default=None,
-                        help="HV to filter corrtags by")
-    parser.add_argument("--segment", default=None,
-                        help="Segment to filter corrtags by")
-    parser.add_argument("--lo", dest="lo_darkname",
-                        help="Name of low activity superdark")
-    parser.add_argument("--hi", dest="hi_darkname",
-                        help="Name of high activity superdark")
-    parser.add_argument("-o", "--outdir", default=".",
-                        help="Name of output directory")
-    parser.add_argument("--binned", default=False,
-                        action="store_true",
-                        help="Toggle to indicate that supplied superdarks are binned")
-    parser.add_argument("-c", "--clobber", default=False,
-                        action="store_true",
-                        help="Toggle to overwrite any existing products")
-    args = parser.parse_args()
-    corrtags = glob.glob(os.path.join(args.datadir, "*corrtag*fits"))
-
-    predict_dark(corrtags, args.lo_darkname, args.hi_darkname, args.segment, args.hv, args.outdir, args.binned, args.clobber)
