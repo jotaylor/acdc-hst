@@ -39,7 +39,8 @@ class Acdc():
     """
     
     def __init__(self, indir, darkcorr_outdir, x1d_outdir=None, binned=False, 
-                 superdark_dir=None, segment=None, hv=None, overwrite=False):
+                 superdark_dir=None, segment=None, hv=None, overwrite=False,
+                 exclude_lya=False, lo_darkname=None, hi_darkname=None):
         """
         Args:
             indir (str): Input directory that houses corrtags to correct.
@@ -51,6 +52,7 @@ class Acdc():
 
         self.overwrite = overwrite
         self.indir = indir
+        self.exclude_lya = exclude_lya
         if superdark_dir is None:
             try:
                 superdark_dir = os.environ["ACDC_SUPERDARKS"]
@@ -73,7 +75,15 @@ class Acdc():
             os.makedirs(darkcorr_outdir)
         corrtags = glob.glob(os.path.join(indir, "*corrtag*fits"))
         self.corr_dict = self.sort_corrtags(corrtags)
-        self.dark_dict = self.sort_superdarks()
+
+        if set([lo_darkname, hi_darkname]) == {None}:
+            supplied_darks = None
+        if None in [lo_darkname, hi_darkname] and len(set([lo_darkname, hi_darkname])) != 1:
+            print(f"WARNING: Both an active and quiescent must be provided- using default superdark library")
+            supplied_darks = None
+        elif len(set([lo_darkname, hi_darkname])) == 2:
+            supplied_darks = [lo_darkname, hi_darkname]
+        self.dark_dict = self.sort_superdarks(supplied_darks)
 
     
     def sort_corrtags(self, corrtags):
@@ -103,7 +113,7 @@ class Acdc():
         return corr_dict
 
     
-    def sort_superdarks(self):
+    def sort_superdarks(self, supplied_darks=None):
         """Sort superdarks into a dictionary based on segment and HV setting.
         
         Returns:
@@ -113,7 +123,8 @@ class Acdc():
         """
 
 #TODO - handle multiple superdarks per activity period
-        darks0 = glob.glob(os.path.join(self.superdark_dir, "superdark*.asdf"))
+        if supplied_darks is None:
+            darks0 = glob.glob(os.path.join(self.superdark_dir, "superdark*.asdf"))
         if self.binned is False:
             darks = [x for x in darks0 if "phabinned" not in x]
         else:
@@ -171,7 +182,7 @@ class Acdc():
             predict_dark(corrtags, lo_darkname, hi_darkname, 
                          outdir=self.darkcorr_outdir, binned=self.binned,
                          overwrite=self.overwrite, segment=self.segment,
-                         hv=self.hv)
+                         hv=self.hv, exclude_lya=self.exclude_lya)
             subtract_dark(corrtags, self.darkcorr_outdir, outdir=self.darkcorr_outdir, 
                           overwrite=self.overwrite)
         self.custom_corrtags = glob.glob(os.path.join(self.darkcorr_outdir, "corrected*corrtag*fits"))
@@ -201,7 +212,17 @@ class Acdc():
                 other = item.replace("_corrtag_b", "_corrtag_a")
             if other in calibrated:
                 continue
-            calcos.calcos(item, outdir=self.x1d_outdir)
+            spl = os.path.basename(item).split("_")
+            wildcard = spl[0] + "_" + spl[1] + "*"
+            wildcard_products = glob.glob(os.path.join(self.x1d_outdir, wildcard))
+            if len(wildcard_products) >= 1 and self.overwrite is True:
+                for item in wildcard_products:
+                    os.remove(item)
+            elif len(wildcard_products) >= 1 and self.overwrite is False:
+                print(f"WARNING: Products already exist and overwrite is False, skipping...")
+                continue
+
+            calcos.calcos(item, outdir=self.x1d_outdir, verbosity=0)
             calibrated.append(item)
             calibrated.append(other)
 
