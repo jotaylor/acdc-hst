@@ -31,7 +31,7 @@ def subtract_dark(corrtags, datadir, fact=1, outdir=".", overwrite=False):
 
     for item in corrtags:
         try:
-            acdc_done = fits.getval(item, "ACDC")
+            acdc_done = fits.getval(item, "ACDCCORR")
             if acdc_done == "COMPLETE":
                 print(f"WARNING:\nCustom dark correction has already been applied to {item}, skipping...")
                 continue
@@ -44,15 +44,18 @@ def subtract_dark(corrtags, datadir, fact=1, outdir=".", overwrite=False):
              continue
         if not os.path.exists(outdir):
             os.makedirs(outdir)
-        
-        rootname = fits.getval(item, "rootname")
-        segment = fits.getval(item, "segment")
+       
+        hdr0 = fits.getheader(item, 0) 
+        rootname = hdr0["rootname"]
+        segment = hdr0["segment"]
+        cenwave = hdr0["cenwave"]
+        lp = hdr0["life_adj"]
         pred_noise_file = os.path.join(datadir, f"{rootname}_{segment}_noise_complete.asdf")
         pred_noise_af = asdf.open(pred_noise_file)
         pha_str = f"pha{PHA_INCL_EXCL[0]}-{PHA_INCL_EXCL[1]}"
         pred_noise = pred_noise_af[pha_str]
         b = get_binning_pars(pred_noise_af)
-        binned, nevents = bin_science(item, b, fact)
+        binned, nevents = bin_science(item, b, segment, cenwave, lp, fact, exclude_lya=False)
         
         hdulist = fits.open(item)
         data = hdulist[1].data
@@ -160,7 +163,7 @@ def subtract_dark(corrtags, datadir, fact=1, outdir=".", overwrite=False):
         hdulist.writeto(outfile, overwrite=overwrite)
         with fits.open(outfile, mode="update") as hdulist:
             hdr0 = hdulist[0].header
-            hdr0.set("ACDC", "COMPLETE")
+            hdr0.set("ACDCCORR", "COMPLETE")
         print(f"Wrote {outfile}")
 
         pred_noise_af.close() 
