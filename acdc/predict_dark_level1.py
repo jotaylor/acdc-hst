@@ -48,7 +48,7 @@ PHA_INCLUSIVE = [2, 23]
 # the logic python uses!!
 PHA_INCL_EXCL = [2, 24]
 # Colorblind-safe palette below
-COLORS = ["#1b9e77", "#d95f02", "#7570b3", "#e7298a", "#66a61e", "#a6cee3", 
+COLORS = ["#9970ab", "#5aae61", "#d95f02", "#e7298a", "#66a61e", "#a6cee3", 
           "#1f78b4", "#b2df8a", "#33a02c", "#fb9a99", "#e31a1c", "#fdbf6f", 
           "#ff7f00", "#cab2d6", "#6a3d9a", "#ffff99", "#b15928", "#a6cee3"]
 # Lyman alpha wavelength limits
@@ -233,9 +233,9 @@ def c_stat(combined_dark, binned_sci, excluded_rows):
         for x in range(combined_dark.shape[1]):
             if binned_sci[y,x] > 0 and y not in excluded_rows and combined_dark[y,x] > 0:
                 csum = csum + 2. * (combined_dark[y,x] - binned_sci[y,x] + binned_sci[y,x] * (np.log(binned_sci[y,x]) - np.log(combined_dark[y,x])))
-            elif y not in excluded_rows:
+            elif y not in excluded_rows and combined_dark[y,x] > 0:
                 csum += np.abs(combined_dark[y,x]) * 2.
-            elif combined_dark[y,x] <= 0:
+            elif y not in excluded_rows and combined_dark[y,x] <= 0:
                 csum += np.inf
 
     return csum
@@ -425,6 +425,10 @@ def predict_dark(corrtags, lo_darkname, hi_darkname, segment=None, hv=None,
             ax = axes[i]
             smoothy, smoothx = smooth_array(binned_sci[row], 25)
             avg = np.average(binned_sci[row])
+            avg_smoothy = np.average(smoothy)
+            diff = np.abs(avg_smoothy - np.average(combined_dark1[row]))
+            if diff > 2*avg_smoothy:
+                ax.annotate("WARNING!\nBAD FIT!", (.05, .85), color=COLORS[2], xycoords="axes fraction")    
             ax.plot(binned_sci[row], color="lightgrey", 
                     label=f"Sci row", alpha=0.8)
             ax.plot(combined_dark1[row], color=COLORS[0], 
@@ -435,7 +439,7 @@ def predict_dark(corrtags, lo_darkname, hi_darkname, segment=None, hv=None,
             ax.set_xlabel("X")
             ax.set_ylabel("Counts")
             ax.legend(loc="upper right")
-        fig.suptitle("Predicted vs. Actual Dark across non PSA/WCA rows\n{rootname} {segment}", size=25)
+        fig.suptitle(f"Predicted vs. Actual Dark across non PSA/WCA rows\n{rootname} {segment}", size=25)
         figname = os.path.join(outdir, f"{rootname}_{segment}_predicted_dark_bkgd.png")
         exists = check_existing(figname, overwrite)
         if not exists:
