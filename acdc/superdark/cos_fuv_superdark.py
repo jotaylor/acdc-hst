@@ -438,7 +438,7 @@ class Superdark():
         if writefile is True:
             self.write_superdark()
 
-    def screen_counts(self, verbose=True, sigma=10, mask=False):
+    def screen_counts(self, verbose=True, sigma=10, mask=False, interpolate=False):
         for i,sd in enumerate(self.superdarks):
             phastart = self.pha_bins[i]
             phaend = self.pha_bins[i+1]
@@ -451,13 +451,20 @@ class Superdark():
                 continue
             if verbose is True:
                 print(f"{len(bad[0])} pixels have counts above {sigma}sigma for {key}")
-            if mask is False:
-                sd[bad] = 0.0
-                self.superdarks[i] = sd
-                self.pha_images[key] = sd
-            else:
+            if interpolate is True:
+                from astropy.convolution import Gaussian2DKernel, interpolate_replace_nans
+                sd[bad] = np.nan
+                kernel = Gaussian2DKernel(x_stddev=1) #Corresponds to 9x9 box
+                interp_sd = interpolate_replace_nans(sd, kernel)
+                self.superdarks[i] = interp_sd
+                self.pha_images[key] = interp_sd
+            elif mask is True:
                 sd_masked = ma.masked_greater_equal(sd, avg+sigma_cutoff)
                 self.superdarks[i] = sd_masked
                 self.pha_images[key] = sd_masked
+            else:
+                sd[bad] = 0.0
+                self.superdarks[i] = sd
+                self.pha_images[key] = sd
 
 
