@@ -40,7 +40,8 @@ class Acdc():
     
     def __init__(self, indir, darkcorr_outdir, x1d_outdir=None, binned=False, 
                  superdark_dir=None, segment=None, hv=None, overwrite=False,
-                 exclude_lya=False, lo_darkname=None, hi_darkname=None):
+                 exclude_lya=False, lo_darkname=None, hi_darkname=None,
+                 calibrate=True):
         """
         Args:
             indir (str): Input directory that houses corrtags to correct.
@@ -50,6 +51,7 @@ class Acdc():
             superdark_dir (str): Location of superdarks. 
         """
 
+        self.calibrate = calibrate
         self.overwrite = overwrite
         self.indir = indir
         self.exclude_lya = exclude_lya
@@ -195,6 +197,10 @@ class Acdc():
         method in CalCOS. The TWOZONE extraction method does not work with
         BACKCORR=OMIT.
         """
+
+        if self.calibrate is False:
+            print("Calibration is set to skip, ending ACDC now")
+            return
 
         for item in self.custom_corrtags:
             with fits.open(item, mode="update") as hdulist:
