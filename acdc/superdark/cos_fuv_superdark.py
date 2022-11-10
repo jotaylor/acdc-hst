@@ -41,7 +41,8 @@ class Superdark():
         self.dayint = dayint
         self.bin_x = bin_x
         self.bin_y = bin_y
-        
+        self.overwrite = overwrite
+
         self.phastart = phastart
         self.phaend = phaend
         if bin_pha == "all":
@@ -231,7 +232,7 @@ class Superdark():
         print("Total time: {}".format(runend-runstart))
 
     
-    def write_superdark(self, user_outfile=None):
+    def write_superdark(self, user_outfile=None, overwrite=False):
         data_dict = self.pha_images
         data_dict["xstart"] = self.xstart
         data_dict["ystart"] = self.ystart
@@ -255,6 +256,9 @@ class Superdark():
             self.outfile = f"superdark_{self.segment}_{self.hv}_{today}.asdf"
         elif self.outfile is None and user_outfile is not None:
             self.outfile = user_outfile
+        if os.path.exists(self.outfile):
+            assert sum([overwrite, self.overwrite]) > 0, f"Output superdark {self.outfile} already exists and overwrite is False"
+
         af.write_to(self.outfile)
         print(f"Wrote {self.outfile}")
 
@@ -367,7 +371,7 @@ class Superdark():
             self.get_pha_bins()
             self.superdarks = superdarks
        
-        if outfile is None: 
+        if outfile is None and writefile is True:
             nowdt = datetime.datetime.now()
             now = nowdt.strftime("%d%b%Y")
             outfile = self.outfile.replace(".asdf", f"binned_{now}.asdf")
@@ -388,8 +392,6 @@ class Superdark():
         
         self.bin_x *= bin_x
         self.bin_y *= bin_y
-        pdffile = os.path.join(self.outdir, self.outfile.replace("asdf", "pdf"))
-        pdf = PdfPages(pdffile)
         # Bin in spatial directions
         for i,sd in enumerate(self.superdarks):
             phastart = self.pha_bins[i]
@@ -418,6 +420,19 @@ class Superdark():
                 print(f"\tMean countrate per binned pixel: {np.mean(rate):.2e}")
                 print(f"\t  Standard deviation: {np.std(rate):.2e}")
                 print(f"\tMedian countrate per binned pixel: {np.median(rate):.2e}")
+
+        if writefile is True:
+            self.write_superdark()
+            self.plot_superdarks()
+
+    def plot_superdarks(self, pdffile=None):
+        if pdffile is None:
+            pdffile = os.path.join(self.outdir, self.outfile.replace("asdf", "pdf"))
+        pdf = PdfPages(pdffile)
+        for i,sd in enumerate(self.superdarks):
+            phastart = self.pha_bins[i]
+            phaend = self.pha_bins[i+1]
+            rate = sd/self.total_exptime
             fig, ax = plt.subplots(figsize=(20,5))
             #vmin = np.mean(rate) - 3*np.std(rate)
             vmin = np.median(rate) - np.median(rate)*0.5
@@ -428,15 +443,12 @@ class Superdark():
             im = ax.imshow(rate, aspect="auto",
                            origin="lower", cmap="inferno", vmin=vmin, vmax=vmax)
             fig.colorbar(im, label="Counts/s", format="%.2e")
-
             ax.set_title(f"{self.segment}; HV={self.hv}; MJD {self.mjdstarts}-{self.mjdends}; PHA {phastart}-{phaend}; X bin={self.bin_x} Y bin={self.bin_y}")
             plt.tight_layout()
             pdf.savefig(fig)
         pdf.close()
         print(f"Wrote {pdffile}")
-        
-        if writefile is True:
-            self.write_superdark()
+
 
     def screen_counts(self, verbose=True, sigma=10, mask=False, interpolate=False):
         for i,sd in enumerate(self.superdarks):
