@@ -289,6 +289,8 @@ def predict_dark(corrtags, lo_darkname, hi_darkname, segment=None, hv=None,
         Hi.screen_counts(verbose=False, sigma=5, mask=True)
         Lo.write_superdark(user_outfile=lo_binnedname)
         Hi.write_superdark(user_outfile=hi_binnedname)
+        Lo.plot_superdarks()
+        Hi.plot_superdarks()
     else:
         lo_binnedname = lo_darkname
         hi_binnedname = hi_darkname
