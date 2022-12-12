@@ -150,7 +150,7 @@ class Superdark():
         self.bin_yend = self.yend // self.bin_y
 
 
-    def create_superdark(self):
+    def create_superdark(self, dark_df=None):
 
         @dask.delayed
         def _bin_dark(self, dark_df, phastart, phaend):
@@ -176,33 +176,34 @@ class Superdark():
             pha_images[key] = binned_inner
             return pha_images, total_exptime
 
-        notfilled = True
-        self.pha_images = {}
         runstart = datetime.datetime.now()
         print("\nStart time: {}".format(runstart))
-        dark_dfs = []
-        total_days = 0
         total_exptime = 0
         total_files = 0
-        for k in range(len(self.mjdstarts)):
-            start = self.mjdstarts[k]
-            done = False
-            while done is False:
-                total_days += self.dayint
-                if total_days > self.ndays[k]:
-                    total_days = self.ndays[k]
-                    done = True
-                end = start + self.dayint
-                if end > self.mjdends[k]:
-                    end = self.mjdends[k]
-                print(f"Using darks from MJD {start:,}-{end:,}; {total_days}/{self.ndays[k]} days")
-                print("   Querying...")
-                dark_df = files_by_mjd(start, end, segment=self.segment, hv=self.hv)
-                dark_dfs.append(dark_df)
-                print("   Query done")
-                start = end
-
-        dark_df = pd.concat(dark_dfs)
+        self.pha_images = {}
+        if dark_df is None:
+            notfilled = True
+            dark_dfs = []
+            total_days = 0
+            for k in range(len(self.mjdstarts)):
+                start = self.mjdstarts[k]
+                done = False
+                while done is False:
+                    total_days += self.dayint
+                    if total_days > self.ndays[k]:
+                        total_days = self.ndays[k]
+                        done = True
+                    end = start + self.dayint
+                    if end > self.mjdends[k]:
+                        end = self.mjdends[k]
+                    print(f"Using darks from MJD {start:,}-{end:,}; {total_days}/{self.ndays[k]} days")
+                    print("   Querying...")
+                    dark_df = files_by_mjd(start, end, segment=self.segment, hv=self.hv)
+                    dark_dfs.append(dark_df)
+                    print("   Query done")
+                    start = end
+            dark_df = pd.concat(dark_dfs)
+        
         delayed_bin = [_bin_dark(self, dark_df, self.pha_bins[i], self.pha_bins[i+1]) for i in range(len(self.pha_bins)-1)]
         out = dask.compute(*delayed_bin, scheduler='multiprocessing', num_workers=12)
         print("   Binning done")
