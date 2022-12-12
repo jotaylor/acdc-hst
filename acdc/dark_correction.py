@@ -15,6 +15,7 @@ import os
 import glob
 import datetime
 from astropy.io import fits
+import asdf
 import calcos
 
 from acdc.predict_dark_level1 import predict_dark
@@ -70,7 +71,7 @@ class Acdc():
             self.segment = segment.upper()
         else:
             self.segment = segment
-        self.hv = hv 
+        self.hv = int(hv) 
         now = datetime.datetime.now()
         self.x1d_outdir = os.path.join(darkcorr_outdir, f"cal_{now.strftime('%d%b%Y')}")
         if not os.path.exists(darkcorr_outdir):
@@ -78,14 +79,28 @@ class Acdc():
         corrtags = glob.glob(os.path.join(indir, "*corrtag*fits"))
         self.corr_dict = self.sort_corrtags(corrtags)
 
+        # If neither a hi or lo superdark was provided
         if set([lo_darkname, hi_darkname]) == {None}:
             supplied_darks = None
+        # Both hi and lo must be supplied, not just one.
         if None in [lo_darkname, hi_darkname] and len(set([lo_darkname, hi_darkname])) != 1:
             print(f"WARNING: Both an active and quiescent must be provided- using default superdark library")
             supplied_darks = None
+        # This is if both hi and lo superdarks were supplied
         elif len(set([lo_darkname, hi_darkname])) == 2:
             supplied_darks = [lo_darkname, hi_darkname]
-        self.dark_dict = self.sort_superdarks(supplied_darks)
+
+        if supplied_darks is None:
+            self.dark_dict = self.sort_superdarks(supplied_darks)
+        else:
+            dark_dict = defaultdict(dict)
+            lo_af = asdf.open(lo_darkname)
+            hi_af = asdf.open(hi_darkname)
+            dark_dict[f"{lo_af['segment']}_{lo_af['hv']}"]["quiescent"] = lo_darkname
+            dark_dict[f"{hi_af['segment']}_{hi_af['hv']}"]["active"] = hi_darkname
+            self.dark_dict = dark_dict
+            lo_af.close()
+            hi_af.close()
 
     
     def sort_corrtags(self, corrtags):
@@ -109,7 +124,7 @@ class Acdc():
                 if file_segment != self.segment:
                     continue
             if self.hv is not None:
-                if file_hv != self.hv:
+                if int(file_hv) != self.hv:
                     continue
             corr_dict[f"{file_segment}_{file_hv}"].append(item)
         return corr_dict
@@ -126,11 +141,11 @@ class Acdc():
 
 #TODO - handle multiple superdarks per activity period
         if supplied_darks is None:
-            darks0 = glob.glob(os.path.join(self.superdark_dir, "superdark*.asdf"))
+            supplied_darks = glob.glob(os.path.join(self.superdark_dir, "superdark*.asdf"))
         if self.binned is False:
-            darks = [x for x in darks0 if "phabinned" not in x]
+            darks = [x for x in supplied_darks if "phabinned" not in x]
         else:
-            darks = [x for x in darks0 if "phabinned" in x]
+            darks = [x for x in supplied_darks if "phabinned" in x]
         dark_dict = defaultdict(dict)
         for dark in darks:
             darkfile = os.path.basename(dark)
