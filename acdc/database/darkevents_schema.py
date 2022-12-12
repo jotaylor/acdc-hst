@@ -1,6 +1,6 @@
 from sqlalchemy.ext.declarative import declarative_base
 from sqlalchemy import Column
-from sqlalchemy import Float, ForeignKey, Integer, String
+from sqlalchemy import Decimal, ForeignKey, Integer, String
 
 Base = declarative_base()
 
@@ -9,10 +9,10 @@ class DarkEvents(Base):
 
     __tablename__ = "darkevents"
     id = Column(Integer, primary_key=True, nullable=False)
-    xcorr = Column(Float())
-    ycorr = Column(Float())
+    xcorr = Column(Decimal(12,5))
+    ycorr = Column(Decimal(12,5))
     pha = Column(Integer())
-    mjd = Column(Float(precision='15,9'))
+    mjd = Column(Decimal(precision='20,11'))
     hv = Column(Integer())
     segment = Column(String(5))
     filename = Column(String(30))
@@ -23,10 +23,10 @@ class DarkEventsHv163(Base):
 
     __tablename__ = "darkeventshv163"
     id = Column(Integer, primary_key=True, nullable=False)
-    xcorr = Column(Float())
-    ycorr = Column(Float())
+    xcorr = Column(Decimal(12,5))
+    ycorr = Column(Decimal(12,5))
     pha = Column(Integer())
-    mjd = Column(Float(precision='15,9'))
+    mjd = Column(Decimal(precision='20,11'))
     hv = Column(Integer())
     segment = Column(String(5))
     filename = Column(String(30))
@@ -37,10 +37,10 @@ class DarkEventsHv167(Base):
 
     __tablename__ = "darkeventshv167"
     id = Column(Integer, primary_key=True, nullable=False)
-    xcorr = Column(Float())
-    ycorr = Column(Float())
+    xcorr = Column(Decimal(12,5))
+    ycorr = Column(Decimal(12,5))
     pha = Column(Integer())
-    mjd = Column(Float(precision='15,9'))
+    mjd = Column(Decimal(precision='20,11'))
     hv = Column(Integer())
     segment = Column(String(5))
     filename = Column(String(30))
@@ -51,10 +51,10 @@ class DarkEventsHv169(Base):
 
     __tablename__ = "darkeventshv169"
     id = Column(Integer, primary_key=True, nullable=False)
-    xcorr = Column(Float())
-    ycorr = Column(Float())
+    xcorr = Column(Decimal(12,5))
+    ycorr = Column(Decimal(12,5))
     pha = Column(Integer())
-    mjd = Column(Float(precision='15,9'))
+    mjd = Column(Decimal(precision='20,11'))
     hv = Column(Integer())
     segment = Column(String(5))
     filename = Column(String(30))
@@ -65,10 +65,10 @@ class DarkEventsHv171(Base):
 
     __tablename__ = "darkeventshv171"
     id = Column(Integer, primary_key=True, nullable=False)
-    xcorr = Column(Float())
-    ycorr = Column(Float())
+    xcorr = Column(Decimal(12,5))
+    ycorr = Column(Decimal(12,5))
     pha = Column(Integer())
-    mjd = Column(Float(precision='15,9'))
+    mjd = Column(Decimal(precision='20,11'))
     hv = Column(Integer())
     segment = Column(String(5))
     filename = Column(String(30))
@@ -79,10 +79,10 @@ class DarkEventsHv173(Base):
 
     __tablename__ = "darkeventshv173"
     id = Column(Integer, primary_key=True, nullable=False)
-    xcorr = Column(Float())
-    ycorr = Column(Float())
+    xcorr = Column(Decimal(12,5))
+    ycorr = Column(Decimal(12,5))
     pha = Column(Integer())
-    mjd = Column(Float(precision='15,9'))
+    mjd = Column(Decimal(precision='20,11'))
     hv = Column(Integer())
     segment = Column(String(5))
     filename = Column(String(30))
@@ -93,10 +93,10 @@ class DarkEventsHv175(Base):
 
     __tablename__ = "darkeventshv175"
     id = Column(Integer, primary_key=True, nullable=False)
-    xcorr = Column(Float())
-    ycorr = Column(Float())
+    xcorr = Column(Decimal(12,5))
+    ycorr = Column(Decimal(12,5))
     pha = Column(Integer())
-    mjd = Column(Float(precision='15,9'))
+    mjd = Column(Decimal(precision='20,11'))
     hv = Column(Integer())
     segment = Column(String(5))
     filename = Column(String(30))
@@ -107,10 +107,10 @@ class DarkEventsHv178(Base):
 
     __tablename__ = "darkeventshv178"
     id = Column(Integer, primary_key=True, nullable=False)
-    xcorr = Column(Float())
-    ycorr = Column(Float())
+    xcorr = Column(Decimal(12,5))
+    ycorr = Column(Decimal(12,5))
     pha = Column(Integer())
-    mjd = Column(Float(precision='15,9'))
+    mjd = Column(Decimal(precision='20,11'))
     hv = Column(Integer())
     segment = Column(String(5))
     filename = Column(String(30))
@@ -122,10 +122,10 @@ class DarkEventsHvOther(Base):
 
     __tablename__ = "darkeventshvother"
     id = Column(Integer, primary_key=True, nullable=False)
-    xcorr = Column(Float())
-    ycorr = Column(Float())
+    xcorr = Column(Decimal(12,5))
+    ycorr = Column(Decimal(12,5))
     pha = Column(Integer())
-    mjd = Column(Float(precision='15,9'))
+    mjd = Column(Decimal(precision='20,11'))
     hv = Column(Integer())
     segment = Column(String(5))
     filename = Column(String(30))
