@@ -4,11 +4,11 @@ from sqlalchemy.sql import text
 import pandas as pd
 
 from acdc.database.connect_db import load_connection
-import acdc.database.darkevents_schema
+from acdc.database import darkevents_schema
 from acdc.utils.utils import sql_to_df
 
 DBNAME = "dark_events"
-COLUMNS = ["xcorr", "ycorr", "pha", "mjd", "hv", "segment", "filename", "proposid"]
+COLUMNS = ["id", "xcorr", "ycorr", "pha", "mjd", "hv", "segment", "filename", "proposid"]
 TIMING = False
 
 def all_rows(hvtable, returncols=COLUMNS):
@@ -34,15 +34,26 @@ def all_rows(hvtable, returncols=COLUMNS):
     return df
 
 
-def sql_query(hvtable, sqlquery):
+def sql_query(hvtable, sqlquery, returncols):
     session, engine = load_connection(DBNAME)
     tablename = f"DarkEventsHv{hvtable}"
     events_table = getattr(darkevents_schema, tablename)
 
-    query = session.query(events_table).from_statement(text(sqlquery))
-    results = query.all()
+    if returncols == "*":
+        returncols = COLUMNS
+    elif isinstance(returncols, str):
+        returncols = [returncols]
 
-    df = sql_to_df(results, COLUMNS)
+    results = session.execute(sqlquery).fetchall()
+
+# The below query doesn't work if you return a specific column  
+#    query = session.query(events_table).from_statement(text(sqlquery))
+#    results = query.all()
+
+    d = {}
+    for i,col in enumerate(returncols):
+        d[col] = [x[i] for x in results]
+    df = pd.DataFrame(d)
     
     return df
 
