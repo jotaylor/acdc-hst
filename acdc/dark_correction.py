@@ -40,8 +40,8 @@ class Acdc():
     """
     
     def __init__(self, indir, darkcorr_outdir, x1d_outdir=None, binned=False, 
-                 superdark_dir=None, segment=None, hv=None, overwrite=False,
-                 exclude_lya=False, lo_darkname=None, hi_darkname=None,
+                 segment=None, hv=None, overwrite=False,
+                 exclude_lya=False, superdark_dir=None, 
                  calibrate=True):
         """
         Args:
@@ -60,7 +60,7 @@ class Acdc():
             try:
                 superdark_dir = os.environ["ACDC_SUPERDARKS"]
             except KeyError as e:
-                print("ERROR: You must define the $ACDC_SUPERDARKS environment variable- this is where all superdarks are located")
+                print("ERROR: You must supply the supedark directory or define the $ACDC_SUPERDARKS environment variable- this is where all superdarks are located")
                 print("Exiting")
                 sys.exit()
         self.superdark_dir = superdark_dir
@@ -68,39 +68,18 @@ class Acdc():
         self.darkcorr_outdir = darkcorr_outdir
         self.binned = binned
         if segment is not None:
-            self.segment = segment.upper()
-        else:
-            self.segment = segment
-        self.hv = int(hv) 
+            segment = segment.upper()
+        self.segment = segment 
+        if hv is not None:
+            hv = int(hv)
+        self.hv = hv 
         now = datetime.datetime.now()
         self.x1d_outdir = os.path.join(darkcorr_outdir, f"cal_{now.strftime('%d%b%Y')}")
         if not os.path.exists(darkcorr_outdir):
             os.makedirs(darkcorr_outdir)
         corrtags = glob.glob(os.path.join(indir, "*corrtag*fits"))
         self.corr_dict = self.sort_corrtags(corrtags)
-
-        # If neither a hi or lo superdark was provided
-        if set([lo_darkname, hi_darkname]) == {None}:
-            supplied_darks = None
-        # Both hi and lo must be supplied, not just one.
-        if None in [lo_darkname, hi_darkname] and len(set([lo_darkname, hi_darkname])) != 1:
-            print(f"WARNING: Both an active and quiescent must be provided- using default superdark library")
-            supplied_darks = None
-        # This is if both hi and lo superdarks were supplied
-        elif len(set([lo_darkname, hi_darkname])) == 2:
-            supplied_darks = [lo_darkname, hi_darkname]
-
-        if supplied_darks is None:
-            self.dark_dict = self.sort_superdarks(supplied_darks)
-        else:
-            dark_dict = defaultdict(dict)
-            lo_af = asdf.open(lo_darkname)
-            hi_af = asdf.open(hi_darkname)
-            dark_dict[f"{lo_af['segment']}_{lo_af['hv']}"]["quiescent"] = lo_darkname
-            dark_dict[f"{hi_af['segment']}_{hi_af['hv']}"]["active"] = hi_darkname
-            self.dark_dict = dark_dict
-            lo_af.close()
-            hi_af.close()
+        self.dark_dict = self.get_best_superdarks()
 
     
     def sort_corrtags(self, corrtags):
@@ -127,63 +106,45 @@ class Acdc():
                 if int(file_hv) != self.hv:
                     continue
             corr_dict[f"{file_segment}_{file_hv}"].append(item)
+        assert len(corr_dict) != 0, "No corrtags found that match segment and HV constraints"
         return corr_dict
 
     
-    def sort_superdarks(self, supplied_darks=None):
+    def get_best_superdarks(self):
         """Sort superdarks into a dictionary based on segment and HV setting.
         
         Returns:
-            dark_dict (dict): Nested dictionary where each key is the segment+HV setting
-                and each value is a dictionary where each key is the type of superdark 
-                (either 'active' or 'quiescent') and each value is the superdark name.
+            dark_dict (dict): Dictionary where each key is the segment+HV setting
+                and each value is a list of all applicable superdarks. 
         """
-
-#TODO - handle multiple superdarks per activity period
-        if supplied_darks is None:
-            supplied_darks = glob.glob(os.path.join(self.superdark_dir, "superdark*.asdf"))
+        all_darks = glob.glob(os.path.join(self.superdark_dir, "*superdark*.asdf"))
         if self.binned is False:
-            darks = [x for x in supplied_darks if "phabinned" not in x]
+            darks = [x for x in all_darks if "binned" not in x]
         else:
-            darks = [x for x in supplied_darks if "phabinned" in x]
-        dark_dict = defaultdict(dict)
+            darks = [x for x in all_darks if "binned" in x]
+        dark_dict = defaultdict(list)
+        corr_segments = [x.split("_")[0] for x in self.corr_dict]
+        corr_hvs = [x.split("_")[1] for x in self.corr_dict]
         for dark in darks:
             darkfile = os.path.basename(dark)
             sp = darkfile.split("_")
             segment = sp[1]
             hv = sp[2]
-            period = sp[-1].split(".")[0]
-            dark_dict[f"{segment}_{hv}"][period] = dark
+            if segment in corr_segments and hv in corr_hvs:
+                dark_dict[f"{segment}_{hv}"].append(dark)
+        
+        assert len(dark_dict) != 0, "No matching superdarks found!!"
+        if self.binned is False:
+            print("Matching superdarks:")
+        else:
+            print("Matching binned superdarks:")
+        for k,v in dark_dict.items():
+            for sd in v:
+                print(f"\t{sd}")
+
         return dark_dict
 
-
-    def filter_corrtags(self, corrtags):
-        """Filter corrtags based on HV and segment requirements.
-
-        Args:
-            corrtags (array-like): All corrtags to be corrected.
-
-        Returns:
-            good_corrtags (array-like): All corrtags to be corrected,
-                filtered by the specified HV and segment requirements.
-        """
-        good_corrtags = []
-        for item in corrtags:
-            file_segment = fits.getval(item, "segment")
-            file_hv = fits.getval(item, f"HVLEVEL{file_segment[-1]}", 1)
-            if self.segment is not None and file_segment != self.segment.upper():
-                print(f"File does not match required settings: {item}")
-                continue
-            if self.hv is not None and int(file_hv) != int(self.hv):
-                print(f"File does not match required settings: {item}")
-                continue
-            good_corrtags.append(item)
-        assert len(good_corrtags) != 0, \
-            "No supplied corrtags matched the settings HV={self.hv}, segment={self.segment}"
-        return good_corrtags
-
-
-# TODO- move binning out of custom correction
+    
     def custom_dark_correction(self):
         """Perform the custom dark correction.
 
@@ -194,9 +155,8 @@ class Acdc():
         
         for seg_hv in self.corr_dict:
             corrtags = self.corr_dict[seg_hv]
-            lo_darkname = self.dark_dict[seg_hv]["quiescent"]
-            hi_darkname = self.dark_dict[seg_hv]["active"]
-            predict_dark(corrtags, lo_darkname, hi_darkname, 
+            superdarks = self.dark_dict[seg_hv]
+            predict_dark(corrtags, superdarks, 
                          outdir=self.darkcorr_outdir, binned=self.binned,
                          overwrite=self.overwrite, segment=self.segment,
                          hv=self.hv, exclude_lya=self.exclude_lya)

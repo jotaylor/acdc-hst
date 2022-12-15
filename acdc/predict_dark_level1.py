@@ -21,7 +21,8 @@ Command line-arguments:
         Using this argument indicates that the supplied superdarks are already
         binned and should not be binned any further.
 """
-
+import datetime
+from collections import defaultdict
 import copy
 import argparse
 import os
@@ -31,6 +32,7 @@ from scipy.optimize import minimize
 from astropy.io import fits
 import numpy as np
 import matplotlib.pyplot as plt
+from matplotlib.backends.backend_pdf import PdfPages
 
 from acdc.superdark.cos_fuv_superdark import Superdark
 from acdc.database.calculate_dark import get_aperture_region
@@ -82,7 +84,7 @@ def linear_combination(darks, coeffs):
     science exposure.
 
     Arguments:
-        darks (list): List of superdarks to scale and combine.
+        darks (list): List of superdark images to scale and combine.
         coeffs (list): List of scale factors to apply to each superdark.
     Returns:
         combined (array): Scaled and combined model superdark.
@@ -94,20 +96,25 @@ def linear_combination(darks, coeffs):
     return combined 
 
 
-def check_superdarks(af1, af2):
+def check_superdarks(binned_superdarks):
     """Ensure all input superdarks were binned with identical bin sizes.
 
     Arguments: 
-        af1 (AsdfFile): ASDF file 1 to compare.
-        af2 (AsdfFile): ASDF file 2 to compare.
+        binned_superdarks (list or array-like): List of binned superdarks.
     """
 
     bad = False
     keys = ["bin_pha", "bin_x", "bin_y", "xstart", "xend", "ystart", "yend",
             "phastart", "phaend"]
+    dark_vals = defaultdict(list)
+    for darkfile in binned_superdarks:
+        dark_af = asdf.open(darkfile)
+        for k in keys:
+            dark_vals[k].append(dark_af[k])
+        dark_af.close()
     for k in keys:
-        if af1[k] != af2[k]:
-            print(f"WARNING!!!! Key {k} does not match for both superdarks")
+        if len(set(dark_vals[k])) != 1:
+            print(f"WARNING!!!! Key {k} does not match for all superdarks")
             bad = True
     assert bad == False, "Cannot continue until discrepancies are resolved"
 
@@ -249,7 +256,7 @@ def check_existing(filename, overwrite=False):
         return False
 
 
-def predict_dark(corrtags, lo_darkname, hi_darkname, segment=None, hv=None, 
+def predict_dark(corrtags, superdarks, segment=None, hv=None, 
                  outdir=".", binned=False, overwrite=False, exclude_lya=False):
     """Model the superdark for each input science corrtag.
 
@@ -259,8 +266,7 @@ def predict_dark(corrtags, lo_darkname, hi_darkname, segment=None, hv=None,
 
     Args:
         corrtags (list or array-like): Predict the model superdark for these corrtags.
-        lo_darkname (str): Quiescent superdark of the appropriate segment+HV combination.
-        hi_darkname (str): Active superdark of the appropriate segment+HV combination.
+        superdarks (list or array-like): Superdarks to use for modeling. 
         segment (str): (Optional) Process corrtags of this segment only.
         hv (str): (Optional) Process corrtags of this HV only.
         outdir (str): (Optional) Output directory to write products and plots.
@@ -271,58 +277,51 @@ def predict_dark(corrtags, lo_darkname, hi_darkname, segment=None, hv=None,
     """
     if not os.path.exists(outdir):
         os.makedirs(outdir)
+    
+    # Ensure all input superdarks are binned identically 
+    check_superdarks(superdarks)
 
+    # If superdarks are not yet binned, bin them.
     if binned is False:
-        Lo = Superdark.from_asdf(lo_darkname, overwrite=overwrite)
-        Hi = Superdark.from_asdf(hi_darkname, overwrite=overwrite)
-        lo_binnedname0 = lo_darkname.replace(".asdf", "_phabinned.asdf")
-        hi_binnedname0 = hi_darkname.replace(".asdf", "_phabinned.asdf")
-        lo_binnedname = os.path.join(outdir, lo_binnedname0)
-        hi_binnedname = os.path.join(outdir, hi_binnedname0)
-        Lo.screen_counts(verbose=False)
-        Hi.screen_counts(verbose=False)
-        Lo.bin_superdark(RESEL[0]*2, RESEL[1]*2, pha_bins=PHA_INCL_EXCL,
-                         writefile=False)
-        Hi.bin_superdark(RESEL[0]*2, RESEL[1]*2, pha_bins=PHA_INCL_EXCL,
-                         writefile=False) 
-        Lo.screen_counts(verbose=False, sigma=5, mask=True)
-        Hi.screen_counts(verbose=False, sigma=5, mask=True)
-        Lo.write_superdark(user_outfile=lo_binnedname)
-        Hi.write_superdark(user_outfile=hi_binnedname)
-        Lo.plot_superdarks()
-        Hi.plot_superdarks()
+        binned_superdarks = []
+        for darkfile in superdarks:
+            S = Superdark.from_asdf(darkfile, overwrite=overwrite)
+            binnedname0 = darkfile.replace(".asdf", "_binned.asdf")
+            binnedname = os.path.join(outdir, binnedname0)
+            binned_superdarks.append(binnedname)
+            S.screen_counts(verbose=False)
+            S.bin_superdark(RESEL[0]*2, RESEL[1]*2, pha_bins=PHA_INCL_EXCL,
+                             writefile=False)
+            S.screen_counts(verbose=False, sigma=5, mask=True)
+            S.write_superdark(user_outfile=binnedname)
+            S.plot_superdarks()
     else:
-        lo_binnedname = lo_darkname
-        hi_binnedname = hi_darkname
-    lo_af = asdf.open(lo_binnedname)
-    hi_af = asdf.open(hi_binnedname)
-    check_superdarks(lo_af, hi_af)
-    binning = get_binning_pars(lo_af)
-    pha_str = f"pha{PHA_INCL_EXCL[0]}-{PHA_INCL_EXCL[1]}"
-    lo_dark = lo_af[pha_str]
-    hi_dark = hi_af[pha_str]
-#    lo_dark = lo_dark[:, :288]
-#    hi_dark = hi_dark[:, :288]
-    dark_hv = lo_af["hv"]
-    dark_segment = lo_af["segment"]
-    fig,ax = plt.subplots(1, 1, figsize=(20,8))
-    im = ax.imshow(lo_dark, aspect="auto", origin="lower")
-    fig.colorbar(im, label="Counts")
-    ax.set_title(f"{dark_segment} {dark_hv} quiescent superdark", size=25)
-    figname = os.path.join(outdir, f"{dark_segment}_{dark_hv}_lo_superdark.png")
-    exists = check_existing(figname, overwrite)
-    if not exists:
-        fig.savefig(figname, bbox_inches="tight")
-        print(f"Saved quiscent superdark figure: {figname}")
-    fig,ax = plt.subplots(1, 1, figsize=(20,8))
-    im = ax.imshow(hi_dark, aspect="auto", origin="lower")
-    fig.colorbar(im, label="Counts")
-    ax.set_title(f"{dark_segment} {dark_hv} active superdark", size=25)
-    figname = os.path.join(outdir, f"{dark_segment}_{dark_hv}_hi_superdark.png")
-    exists = check_existing(figname, overwrite)
-    if not exists:
-        fig.savefig(figname, bbox_inches="tight")
-        print(f"Saved active superdark figure:{figname}")
+        binned_superdarks = superdarks
+
+    # Plot the binned superdarks 
+    pdfname = os.path.join(outdir, "all_binned_superdarks.pdf")
+    pdf = PdfPages(pdfname)
+    dark_ims = []
+    superdark_exptimes = []
+    for darkfile in binned_superdarks:
+        dark_af = asdf.open(darkfile)
+        superdark_exptimes.append(dark_af["total_exptime"])
+        binning = get_binning_pars(dark_af)
+        pha_str = f"pha{PHA_INCL_EXCL[0]}-{PHA_INCL_EXCL[1]}"
+        dark = dark_af[pha_str]
+        this = type(dark.data)
+        dark_im = copy.deepcopy(dark)
+        dark_ims.append(dark_im)
+        dark_hv = dark_af["hv"]
+        dark_segment = dark_af["segment"]
+        fig,ax = plt.subplots(1, 1, figsize=(20,8))
+        im = ax.imshow(dark, aspect="auto", origin="lower")
+        fig.colorbar(im, label="Counts")
+        ax.set_title(f"{os.path.basename(darkfile)}\n{dark_segment} {dark_hv} superdark", size=25)
+        pdf.savefig(fig, bbox_inches="tight")
+        dark_af.close()
+
+    # Now go through each input science corrtag
     for item in corrtags:
         file_segment = fits.getval(item, "segment")
         file_hv = fits.getval(item, f"HVLEVEL{file_segment[-1]}", 1)
@@ -368,14 +367,9 @@ def predict_dark(corrtags, lo_darkname, hi_darkname, segment=None, hv=None,
             print(f"Saved binned science image: {figname}")
         plt.clf()
         sci_exp = fits.getval(item, "exptime", 1)
-        lo_exptime = lo_af["total_exptime"]
-        hi_exptime = hi_af["total_exptime"]
-        # Initial guess is 0.5 contribution for each superdark
-        lo_coeff = 0.5 / (lo_exptime / sci_exp)
-        hi_coeff = 0.5 / (hi_exptime / sci_exp)
-        combined_dark = linear_combination([lo_dark, hi_dark], [lo_coeff, hi_coeff])
-# this is science extraction regions (use xtractab) for sci exp. LP
-# also exclude wavecals
+
+        # Plot the counts in each row that are used for scaling-
+        # that is, all non-PSA and non-WCA rows.        
         nrows = np.shape(binned_sci)[0]
         all_rows = np.arange(nrows)
         bkg_rows = list(set(all_rows) - set(excluded_rows))
@@ -392,19 +386,31 @@ def predict_dark(corrtags, lo_darkname, hi_darkname, segment=None, hv=None,
             plt.savefig(figname, bbox_inches="tight")
             print(f"Saved non-PSA/WCA rows: {figname}")
         plt.clf()
-#        val_c = c_stat(combined_dark, binned_sci, excluded_rows)
 
+        # Make an initial guess at the combined superdark which is just an equal
+        # contribution from each binned superdark.
+        equal = 1 / len(binned_superdarks)
+        superdark_coeffs = [equal / (exptime / sci_exp) for exptime in superdark_exptimes]
+        combined_dark = linear_combination(dark_ims, superdark_coeffs)
+        import pdb; pdb.set_trace()
+
+        # Now actually determine the best combination of all superdarks 
 # TO DO, always hardcode this?
 # Compare hardcoded vs variables
         #x0 = [0.007, 0.005]
-        x0 = [0.1 * np.mean(binned_sci) / np.mean(lo_dark), 0.1 * np.mean(binned_sci) / np.mean(hi_dark)]
-#        x0 = [lo_coeff, hi_coeff]
+        x0 = [0.1 * np.mean(binned_sci) / np.mean(dark_im) for dark_im in dark_ims]
+#        x0 = superdark_coeffs
         res = minimize(fun_opt, x0, method="Nelder-Mead", tol=1e-6, 
-                       args=([lo_dark, hi_dark], binned_sci, excluded_rows),
+                       args=(dark_ims, binned_sci, excluded_rows),
                        #bounds=[(1.e-8, None), (1.e-8, None)], options={'maxiter': 1000})
-                       bounds=[(1.e-10, None), (1.e-10, None)], options={'maxiter': 1000})
-        combined_dark1 = linear_combination([lo_dark, hi_dark], res.x)
-        #print(res.x, lo_af["total_exptime"], hi_af["total_exptime"], sci_exp) 
+                       bounds=[(1.e-10, None) for x in binned_superdarks], options={'maxiter': 1000})
+        combined_dark1 = linear_combination(dark_ims, res.x)
+        #print(res.x, lo_af["total_exptime"], hi_af["total_exptime"], sci_exp)
+        now2 = datetime.datetime.now()
+        print(now2)
+        import pdb; pdb.set_trace()
+
+        # Plot the model superdark
         sh = np.shape(combined_dark1)
         plt.imshow(combined_dark1, aspect="auto", origin="lower",
                    extent=[0, sh[1], 0, sh[0]])
@@ -417,7 +423,7 @@ def predict_dark(corrtags, lo_darkname, hi_darkname, segment=None, hv=None,
             print(f"Saved combined dark image: {figname}")
         plt.clf()
 
-        # Use just one row outside of extraction regions
+        # Plot the predicted vs. actual dark rates for all non-PSA and non-WCA rows
         ncols = 3
         nrows = int(np.ceil(len(bkg_rows)/ncols))
         fig, axes0 = plt.subplots(nrows, ncols, figsize=(25,15))
@@ -449,7 +455,7 @@ def predict_dark(corrtags, lo_darkname, hi_darkname, segment=None, hv=None,
             print(f"Saved actual vs predicted darks: {figname}")
         plt.clf()
         
-        # Use just one row outside of extraction regions
+        # Plot the predicted vs. actual dark rates for all PSA rows
         ncols = 1
         nrows = int(np.ceil(len(apertures["PSA"])/ncols))
         fig, axes0 = plt.subplots(nrows, ncols, figsize=(25,15))
@@ -477,26 +483,27 @@ def predict_dark(corrtags, lo_darkname, hi_darkname, segment=None, hv=None,
         plt.clf()
 
 #       These two files below are used for sanity checks
-        noise = copy.deepcopy(lo_af.tree)
-        noise[pha_str] = combined_dark1[apertures["PSA"]]
-        noise["scaling"] = res.x
-        outfile = os.path.join(outdir, f"{rootname}_{segment}_noise.asdf")
-        noise_af = asdf.AsdfFile(noise)
-        exists = check_existing(outfile, overwrite)
-        if not exists:
-            noise_af.write_to(outfile)
-            print(f"Wrote {outfile}")
-
-        signal = copy.deepcopy(lo_af.tree)
-        signal[pha_str] = binned_sci[apertures["PSA"]]
-        outfile = os.path.join(outdir, f"{rootname}_{segment}_signal.asdf")
-        signal_af = asdf.AsdfFile(signal)
-        exists = check_existing(outfile, overwrite)
-        if not exists:
-            signal_af.write_to(outfile)
-            print(f"Wrote {outfile}")
-
-        noise_comp = copy.deepcopy(lo_af.tree)
+#        noise = copy.deepcopy(lo_af.tree)
+#        noise[pha_str] = combined_dark1[apertures["PSA"]]
+#        noise["scaling"] = res.x
+#        outfile = os.path.join(outdir, f"{rootname}_{segment}_noise.asdf")
+#        noise_af = asdf.AsdfFile(noise)
+#        exists = check_existing(outfile, overwrite)
+#        if not exists:
+#            noise_af.write_to(outfile)
+#            print(f"Wrote {outfile}")
+#
+#        signal = copy.deepcopy(lo_af.tree)
+#        signal[pha_str] = binned_sci[apertures["PSA"]]
+#        outfile = os.path.join(outdir, f"{rootname}_{segment}_signal.asdf")
+#        signal_af = asdf.AsdfFile(signal)
+#        exists = check_existing(outfile, overwrite)
+#        if not exists:
+#            signal_af.write_to(outfile)
+#            print(f"Wrote {outfile}")
+        
+        dark_af = asdf.open(binned_superdarks[0])
+        noise_comp = copy.deepcopy(dark_af.tree)
         noise_comp[pha_str] = combined_dark1
         #combined_exptime = (lo_exptime * res.x[0]) + (hi_exptime * res.x[1])
         noise_comp["total_exptime"] = sci_exp

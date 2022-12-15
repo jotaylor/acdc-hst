@@ -2,8 +2,8 @@ import argparse
 from acdc.dark_correction import Acdc
 
 
-def run_acdc(indir, darkcorr_outdir, x1d_outdir=None, lo_darkname=None, 
-             hi_darkname=None, binned=False, hv=None, 
+def run_acdc(indir, darkcorr_outdir, x1d_outdir=None,
+             superdark_dir=None, binned=False, hv=None, 
              segment=None, overwrite=False, exclude_lya=False,
              calibrate=True):
     """Wrapper script to perform custom dakr correction on an input directory.
@@ -17,7 +17,7 @@ def run_acdc(indir, darkcorr_outdir, x1d_outdir=None, lo_darkname=None,
         segment (str): (Optional) Process corrtags of this segment only.
     """
     A = Acdc(indir=indir, darkcorr_outdir=darkcorr_outdir, x1d_outdir=x1d_outdir,
-             lo_darkname=lo_darkname, hi_darkname=hi_darkname,
+             superdark_dir=superdark_dir,
              binned=binned, segment=segment, hv=hv, overwrite=overwrite,
              exclude_lya=exclude_lya, calibrate=True)
     A.custom_dark_correction()
@@ -32,13 +32,11 @@ def acdc_parser():
                         help="Name of directory to write model superdarks and custom corrtags to")
     parser.add_argument("--x1d_outdir", default=None,
                         help="Name of directory to write 1D spectra to")
-    parser.add_argument("--lo", dest="lo_darkname",
-                        help="Name of low activity superdark")
-    parser.add_argument("--hi", dest="hi_darkname",
-                        help="Name of high activity superdark")
+    parser.add_argument("-d", "--darkdir", default=None,
+                        help="Directory that houses superdarks to use")
     parser.add_argument("--binned", default=False,
                         action="store_true",
-                        help="Toggle to indicate that supplied superdarks are binned")
+                        help="Toggle to indicate that supplied superdarks are already binned")
     parser.add_argument("-c", "--clobber", default=False,
                         action="store_true",
                         help="Toggle to overwrite any existing products")
@@ -54,7 +52,7 @@ def acdc_parser():
                         help="Toggle to turn off CalCOS calibration") 
     args = parser.parse_args()
     run_acdc(args.indir, args.darkcorr_outdir, args.x1d_outdir, 
-             args.lo_darkname, args.hi_darkname, args.binned, args.hv, 
+             args.darkdir, args.binned, args.hv, 
              args.segment, args.clobber, args.exclude_lya, args.calibrate)
 
 

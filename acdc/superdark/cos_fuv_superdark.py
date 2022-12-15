@@ -371,11 +371,12 @@ class Superdark():
             self.pha_bins = np.array(pha_bins)
             self.get_pha_bins()
             self.superdarks = superdarks
-       
+        
+        infile = self.outfile
         if outfile is None and writefile is True:
             nowdt = datetime.datetime.now()
             now = nowdt.strftime("%d%b%Y")
-            outfile = self.outfile.replace(".asdf", f"binned_{now}.asdf")
+            outfile = self.outfile.replace(".asdf", f"_binned_{now}.asdf")
         self.outfile = outfile
         if writefile is True and self.overwrite is False and os.path.exists(outfile):
             print(f"WARNING: Output superdark {outfile} already exists and overwrite is False, skipping...")
@@ -409,7 +410,9 @@ class Superdark():
             self.pha_images[key] = binned
             rate = binned/self.total_exptime
             if verbose is True:
-                print(f"For PHAs {phastart} through {phaend}")
+                print("")
+                print(f"Binning superdark {infile}")
+                print(f"Binning PHAs {phastart} through {phaend}")
                 print(f"Binning by X={self.bin_x}, Y={self.bin_y}")
                 print(f"\tTotal number of events: {np.sum(binned):,}")
                 print(f"\tTotal exptime of superdark: {self.total_exptime:,}")
