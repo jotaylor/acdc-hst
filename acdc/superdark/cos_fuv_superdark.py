@@ -409,13 +409,15 @@ class Superdark():
             key = f"pha{phastart}-{phaend}"
             self.pha_images[key] = binned
             rate = binned/self.total_exptime
+            zeroinds = np.where(binned == 0)
+            nzero = len(zeroinds[0])
             if verbose is True:
                 print("")
                 print(f"Binning superdark {infile}")
                 print(f"Binning PHAs {phastart} through {phaend}")
                 print(f"Binning by X={self.bin_x}, Y={self.bin_y}")
                 print(f"\tTotal number of events: {np.sum(binned):,}")
-                print(f"\tTotal exptime of superdark: {self.total_exptime:,}")
+                print(f"\tTotal exptime [s] of superdark: {self.total_exptime:,.1f}")
                 print(f"\tMinimum number of events in a binned pixel: {np.min(binned)}")
                 print(f"\tMaximum number of events in a binned pixel: {np.max(binned)}")
                 print(f"\tMean number of events per binned pixel: {np.mean(binned):.1f}")
@@ -424,6 +426,7 @@ class Superdark():
                 print(f"\tMean countrate per binned pixel: {np.mean(rate):.2e}")
                 print(f"\t  Standard deviation: {np.std(rate):.2e}")
                 print(f"\tMedian countrate per binned pixel: {np.median(rate):.2e}")
+                print(f"\tNumber of binned pixels with zero events: {nzero:,}")
 
         if writefile is True:
             self.write_superdark()
@@ -454,20 +457,28 @@ class Superdark():
         print(f"Wrote {pdffile}")
 
 
-    def screen_counts(self, verbose=True, sigma=10, mask=False, interpolate=False):
+    # Should investigate if this can be replaced with typical sigma clipping
+    def screen_counts(self, verbose=True, sigma=10, mask=False, interpolate=False, method=np.median, exclude_zeros=True):
         for i,sd in enumerate(self.superdarks):
             phastart = self.pha_bins[i]
             phaend = self.pha_bins[i+1]
             key = f"pha{phastart}-{phaend}"
-            avg = np.mean(sd)
-            std = np.std(sd)
+            if exclude_zeros is True:
+                nonzeroinds = np.where(sd > 0)
+                sd_stats = sd[nonzeroinds]
+            else:
+                sd_stats = sd
+            mid = method(sd_stats)
+            std = np.std(sd_stats)
             sigma_cutoff = (std*sigma)
-            bad = np.where(sd > (avg+sigma_cutoff))
+            bad = np.where(sd > (mid+sigma_cutoff))
             if len(bad[0]) == 0:
                 continue
             if verbose is True:
                 print(f"{len(bad[0])} pixels have counts above {sigma}sigma for {key}")
+
             if interpolate is True:
+                # From https://docs.astropy.org/en/stable/convolution/index.html
                 from astropy.convolution import Gaussian2DKernel, interpolate_replace_nans
                 sd[bad] = np.nan
                 kernel = Gaussian2DKernel(x_stddev=1) #Corresponds to 9x9 box
@@ -475,7 +486,7 @@ class Superdark():
                 self.superdarks[i] = interp_sd
                 self.pha_images[key] = interp_sd
             elif mask is True:
-                sd_masked = ma.masked_greater_equal(sd, avg+sigma_cutoff)
+                sd_masked = ma.masked_greater_equal(sd, mid+sigma_cutoff)
                 self.superdarks[i] = sd_masked
                 self.pha_images[key] = sd_masked
             else:
