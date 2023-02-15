@@ -37,7 +37,7 @@ from matplotlib.backends.backend_pdf import PdfPages
 from acdc.superdark.cos_fuv_superdark import Superdark
 from acdc.database.calculate_dark import get_aperture_region
 from acdc.analysis.compare_backgrounds import smooth_array
-from acdc.utils.utils import bin_coords
+from acdc.utils.utils import bin_coords, timefunc
 
 
 # Hardcoded constant values
@@ -57,6 +57,7 @@ COLORS = ["#9970ab", "#5aae61", "#d95f02", "#e7298a", "#66a61e", "#a6cee3",
 LYA_LO = 1213.67 # Angstroms
 LYA_HI = 1217.67 # Angstroms
 
+@timefunc
 def fun_opt(coeffs, darks, binned_sci, excluded_rows):
     """TODO- fill in
 
@@ -72,10 +73,15 @@ def fun_opt(coeffs, darks, binned_sci, excluded_rows):
 
     combined_dark = linear_combination(darks, coeffs)
     cval = c_stat(combined_dark, binned_sci, excluded_rows)
+    # Uncomment the lines below for debugging on the convergence process
+#    print(coeffs)
+#    print(cval)
+#    print("")
     
     return cval
 
 
+@timefunc
 def linear_combination(darks, coeffs):
     """Scale and combine superdarks.
 
@@ -159,9 +165,9 @@ def bin_science(corrtag, b, segment, cenwave, lp, fact=1, exclude_lya=False):
     inds0 = np.where(
                      (data["pha"] >= b["phastart"]) & 
                      (data["pha"] < b["phaend"]) &
-                     (data["xcorr"] > b["xstart"]) &
+                     (data["xcorr"] >= b["xstart"]) &
                      (data["xcorr"] < b["xend"]) & 
-                     (data["ycorr"] > b["ystart"]) &
+                     (data["ycorr"] >= b["ystart"]) &
                      (data["ycorr"] < b["yend"]))
     filtered0 = data[inds0]
     if exclude_lya is True:
@@ -180,18 +186,23 @@ def bin_science(corrtag, b, segment, cenwave, lp, fact=1, exclude_lya=False):
     binned = np.zeros((ydim, xdim*fact))
     nevents = np.zeros((ydim, xdim*fact))
     
-    for i in range(len(filtered["xcorr"])):
-        x = int((filtered["xcorr"][i] - b["xstart"]) // b["bin_x"] * fact)
-        y = int((filtered["ycorr"][i] - b["ystart"]) // b["bin_y"])
+    xbinned, ybinned = bin_coords(filtered["xcorr"], filtered["ycorr"],
+                            b["bin_x"], b["bin_y"], b["xstart"], b["ystart"],
+                            make_int=True)
+    
+    for i in range(len(xbinned)):
+        x = xbinned[i]
+        y = ybinned[i]
         binned[y,x] += filtered["epsilon"][i]
         nevents[y,x] += 1
+
     return binned, nevents
 
 
-def get_excluded_rows(segment, cenwave, lp, binning):
+def get_excluded_rows(segment, cenwave, lp, binning, pad_psa=[0,0], pad_wca=[0,0]):
     """
     Determine the rows that correspond to the PSA and WCA apertures for a 
-    igiven segment, cenwave, and lifetime position. Return the row indices in 
+    given segment, cenwave, and lifetime position. Return the row indices in 
     the binned superdark coordinate system.
 
     Arguments:
@@ -208,20 +219,26 @@ def get_excluded_rows(segment, cenwave, lp, binning):
     
     excluded_rows = np.array(())
     apertures = {"PSA": None, "WCA": None}
+    pad = {"PSA": pad_psa, "WCA": pad_wca}
     for aperture in apertures:
-        aperture_regions = get_aperture_region(cenwave=cenwave, aperture=aperture, segments=[segment])
+        aperture_regions = get_aperture_region(cenwave=cenwave, aperture=aperture, segments=[segment], life_adj=[lp])
         box = aperture_regions[segment][f"lp{lp}_{aperture.lower()}_{cenwave}"]
         xmin0, xmax0, ymin0, ymax0 = box
-        xsnew, ysnew = bin_coords(np.array([xmin0, xmax0]), np.array([ymin0, ymax0]), binning["bin_x"], binning["bin_y"], binning["xstart"], binning["ystart"], make_int=True)
-        ap_xmin, ap_xmax = xsnew
+        xsnew, ysnew = bin_coords(np.array([xmin0, xmax0]), np.array([ymin0, ymax0]), binning["bin_x"], binning["bin_y"], binning["xstart"], binning["ystart"], as_float=True, make_int=False)
+#        ap_xmin, ap_xmax = xsnew # We don't need x coords
         ap_ymin, ap_ymax = ysnew
-        rows = np.arange(ap_ymin, ap_ymax+1)
+        ap_ymin = int(np.floor(ap_ymin))
+        ap_ymax = int(np.ceil(ap_ymax))
+        ap_ymin -= pad[aperture][0]
+        ap_ymax += pad[aperture][1]
+        rows = np.arange(ap_ymin, ap_ymax) 
         apertures[aperture] = rows
         excluded_rows = np.concatenate((excluded_rows, rows))
     excluded_rows = excluded_rows.astype(int)
     return excluded_rows, apertures
 
 
+@timefunc
 def c_stat(combined_dark, binned_sci, excluded_rows):
     """TODO document
 
@@ -315,7 +332,7 @@ def predict_dark(corrtags, superdarks, segment=None, hv=None,
         dark_hv = dark_af["hv"]
         dark_segment = dark_af["segment"]
         fig,ax = plt.subplots(1, 1, figsize=(20,8))
-        im = ax.imshow(dark, aspect="auto", origin="lower")
+        im = ax.imshow(dark, aspect="auto", origin="lower", interpolation="nearest")
         fig.colorbar(im, label="Counts")
         ax.set_title(f"{os.path.basename(darkfile)}\n{dark_segment} {dark_hv} superdark", size=25)
         pdf.savefig(fig, bbox_inches="tight")
@@ -343,7 +360,6 @@ def predict_dark(corrtags, superdarks, segment=None, hv=None,
         rootname0 = fits.getval(item, "rootname")
         rootname = rootname0.lower()
         binned_sci, nevents = bin_science(item, binning, segment, cenwave, lp, exclude_lya=exclude_lya)
-        print(binning)
 #        vmin = np.mean(binned_sci) - 1*np.std(binned_sci)
 #        if vmin < 0:
 #            vmin = 0
@@ -352,7 +368,7 @@ def predict_dark(corrtags, superdarks, segment=None, hv=None,
         vmax = 10
         sh = np.shape(binned_sci)
         im = ax.imshow(binned_sci, aspect="auto", origin="lower", 
-                vmin=vmin, vmax=vmax, extent=[0, sh[1], 0, sh[0]])
+                vmin=vmin, vmax=vmax, extent=[0, sh[1], 0, sh[0]], interpolation="nearest")
         ax.axhline(apertures["PSA"][0], lw=2, color=COLORS[3], label="PSA")
         ax.axhline(apertures["PSA"][-1]+1, lw=2, color=COLORS[3])
         ax.axhline(apertures["WCA"][0], lw=2, ls="dashed", color=COLORS[3], label="WCA")
@@ -392,7 +408,6 @@ def predict_dark(corrtags, superdarks, segment=None, hv=None,
         equal = 1 / len(binned_superdarks)
         superdark_coeffs = [equal / (exptime / sci_exp) for exptime in superdark_exptimes]
         combined_dark = linear_combination(dark_ims, superdark_coeffs)
-        import pdb; pdb.set_trace()
 
         # Now actually determine the best combination of all superdarks 
 # TO DO, always hardcode this?
@@ -403,17 +418,16 @@ def predict_dark(corrtags, superdarks, segment=None, hv=None,
         res = minimize(fun_opt, x0, method="Nelder-Mead", tol=1e-6, 
                        args=(dark_ims, binned_sci, excluded_rows),
                        #bounds=[(1.e-8, None), (1.e-8, None)], options={'maxiter': 1000})
-                       bounds=[(1.e-10, None) for x in binned_superdarks], options={'maxiter': 1000})
+                       bounds=[(1.e-10, None) for x in binned_superdarks], options={'maxiter': 500})
         combined_dark1 = linear_combination(dark_ims, res.x)
         #print(res.x, lo_af["total_exptime"], hi_af["total_exptime"], sci_exp)
         now2 = datetime.datetime.now()
         print(now2)
-        import pdb; pdb.set_trace()
 
         # Plot the model superdark
         sh = np.shape(combined_dark1)
         plt.imshow(combined_dark1, aspect="auto", origin="lower",
-                   extent=[0, sh[1], 0, sh[0]])
+                   extent=[0, sh[1], 0, sh[0]], interpolation="nearest")
         plt.colorbar(label="Counts/s")
         plt.title(f"{rootname} Combined Superdark", size=25)
         figname = os.path.join(outdir, f"{rootname}_{segment}_combined_dark.png")
@@ -513,7 +527,5 @@ def predict_dark(corrtags, superdarks, segment=None, hv=None,
         if not exists:
             noise_comp_af.write_to(outfile)
             print(f"Wrote {outfile}")
-
-    lo_af.close()
-    hi_af.close()
+        dark_af.close()
 
