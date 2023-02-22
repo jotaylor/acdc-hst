@@ -57,7 +57,7 @@ COLORS = ["#9970ab", "#5aae61", "#d95f02", "#e7298a", "#66a61e", "#a6cee3",
 LYA_LO = 1213.67 # Angstroms
 LYA_HI = 1217.67 # Angstroms
 
-@timefunc
+#@timefunc
 def fun_opt(coeffs, darks, binned_sci, excluded_rows):
     """TODO- fill in
 
@@ -81,7 +81,7 @@ def fun_opt(coeffs, darks, binned_sci, excluded_rows):
     return cval
 
 
-@timefunc
+#@timefunc
 def linear_combination(darks, coeffs):
     """Scale and combine superdarks.
 
@@ -238,7 +238,7 @@ def get_excluded_rows(segment, cenwave, lp, binning, pad_psa=[0,0], pad_wca=[0,0
     return excluded_rows, apertures
 
 
-@timefunc
+#@timefunc
 def c_stat(combined_dark, binned_sci, excluded_rows):
     """TODO document
 
@@ -274,7 +274,8 @@ def check_existing(filename, overwrite=False):
 
 
 def predict_dark(corrtags, superdarks, segment=None, hv=None, 
-                 outdir=".", binned=False, overwrite=False, exclude_lya=False):
+                 outdir=".", binned=False, overwrite=False, exclude_lya=False,
+                 x_bin=RESEL[0]*2, y_bin=RESEL[1]*2):
     """Model the superdark for each input science corrtag.
 
     Use the active and quiescent superdarks of the
@@ -297,7 +298,7 @@ def predict_dark(corrtags, superdarks, segment=None, hv=None,
     
     # Ensure all input superdarks are binned identically 
     check_superdarks(superdarks)
-
+    
     # If superdarks are not yet binned, bin them.
     if binned is False:
         binned_superdarks = []
