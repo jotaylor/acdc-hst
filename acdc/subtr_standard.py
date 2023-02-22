@@ -71,7 +71,7 @@ def subtract_dark(corrtags, datadir, fact=1, outdir=".", overwrite=False):
 
         #wwf = open("tst.txt", "w")
         logic = np.zeros((binned.shape[0], binned.shape[1]))
-        
+       
         all_delta_eps_ind = []
         for i in range(len(data["xcorr"])):
             if data["xcorr"][i] > xstart and data["xcorr"][i] < xend:
@@ -82,6 +82,8 @@ def subtract_dark(corrtags, datadir, fact=1, outdir=".", overwrite=False):
                         delta_eps = pred_noise[y, int(x/fact)] / float(fact)
                         logic[y,x] = 1
                         delta_eps_ind = delta_eps / float(nevents[y,x])
+                        if np.isnan(delta_eps_ind):
+                            delta_eps_ind = 0
         #                outstr = f"{data['epsilon'][i]}\t{delta_eps}\t{delta_eps_ind}\n"
                         data["epsilon"][i] -= delta_eps_ind
         #                wwf.write(outstr)
@@ -157,8 +159,9 @@ def subtract_dark(corrtags, datadir, fact=1, outdir=".", overwrite=False):
                 new_events["pha"][i] = 10
                 new_events["dq"][i] = 0
                 new_events["epsilon"][i] = -pred_noise[inds[0][i], int(inds[1][i]/fact)] / fact
-                 
             data = np.concatenate([data, new_events])
+        nans = np.isnan(data["EPSILON"])
+        data["EPSILON"][nans] = 0
         hdulist[1].data = data
         hdulist.writeto(outfile, overwrite=overwrite)
         with fits.open(outfile, mode="update") as hdulist:
