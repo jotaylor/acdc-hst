@@ -18,6 +18,7 @@ import pandas as pd
 import dask
 import matplotlib.pyplot as plt
 from matplotlib.backends.backend_pdf import PdfPages
+from astropy.convolution import Gaussian2DKernel, interpolate_replace_nans
 
 from acdc.database.query_cos_dark import files_by_mjd
 
@@ -447,7 +448,7 @@ class Superdark():
                 vmin = 0
             #vmax = np.mean(rate) + 3*np.std(rate)
             vmax = np.median(rate) + np.median(rate)*0.5
-            im = ax.imshow(rate, aspect="auto",
+            im = ax.imshow(rate, aspect="auto", interpolation="nearest", 
                            origin="lower", cmap="inferno", vmin=vmin, vmax=vmax)
             fig.colorbar(im, label="Counts/s", format="%.2e")
             ax.set_title(f"{self.segment}; HV={self.hv}; MJD {self.mjdstarts}-{self.mjdends}; PHA {phastart}-{phaend}; X bin={self.bin_x} Y bin={self.bin_y}")
@@ -458,7 +459,7 @@ class Superdark():
 
 
     # Should investigate if this can be replaced with typical sigma clipping
-    def screen_counts(self, verbose=True, sigma=10, mask=False, interpolate=False, method=np.median, exclude_zeros=True):
+    def screen_counts(self, verbose=True, sigma=10, mask=False, interpolate=False, interp_kernel=None,  method=np.median, exclude_zeros=True):
         for i,sd in enumerate(self.superdarks):
             phastart = self.pha_bins[i]
             phaend = self.pha_bins[i+1]
@@ -478,10 +479,10 @@ class Superdark():
                 print(f"{len(bad[0])} pixels have counts above {sigma}sigma for {key}")
 
             if interpolate is True:
+                if interp_kernel is None:
+                    kernel = Gaussian2DKernel(x_stddev=1, x_size=11, y_size=3) # 3x3 box
                 # From https://docs.astropy.org/en/stable/convolution/index.html
-                from astropy.convolution import Gaussian2DKernel, interpolate_replace_nans
                 sd[bad] = np.nan
-                kernel = Gaussian2DKernel(x_stddev=1) #Corresponds to 9x9 box
                 interp_sd = interpolate_replace_nans(sd, kernel)
                 self.superdarks[i] = interp_sd
                 self.pha_images[key] = interp_sd
