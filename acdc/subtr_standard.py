@@ -31,7 +31,7 @@ def subtract_dark(corrtags, datadir, fact=1, outdir=".", overwrite=False):
 
     for item in corrtags:
         try:
-            acdc_done = fits.getval(item, "ACDC")
+            acdc_done = fits.getval(item, "ACDCCORR")
             if acdc_done == "COMPLETE":
                 print(f"WARNING:\nCustom dark correction has already been applied to {item}, skipping...")
                 continue
@@ -44,14 +44,18 @@ def subtract_dark(corrtags, datadir, fact=1, outdir=".", overwrite=False):
              continue
         if not os.path.exists(outdir):
             os.makedirs(outdir)
-        
-        rootname = fits.getval(item, "rootname")
-        pred_noise_file = os.path.join(datadir, rootname+"_noise_complete.asdf")
+       
+        hdr0 = fits.getheader(item, 0) 
+        rootname = hdr0["rootname"]
+        segment = hdr0["segment"]
+        cenwave = hdr0["cenwave"]
+        lp = hdr0["life_adj"]
+        pred_noise_file = os.path.join(datadir, f"{rootname}_{segment}_noise_complete.asdf")
         pred_noise_af = asdf.open(pred_noise_file)
         pha_str = f"pha{PHA_INCL_EXCL[0]}-{PHA_INCL_EXCL[1]}"
         pred_noise = pred_noise_af[pha_str]
         b = get_binning_pars(pred_noise_af)
-        binned, nevents = bin_science(item, b, fact)
+        binned, nevents = bin_science(item, b, segment, cenwave, lp, fact, exclude_lya=False)
         
         hdulist = fits.open(item)
         data = hdulist[1].data
@@ -67,7 +71,7 @@ def subtract_dark(corrtags, datadir, fact=1, outdir=".", overwrite=False):
 
         #wwf = open("tst.txt", "w")
         logic = np.zeros((binned.shape[0], binned.shape[1]))
-        
+       
         all_delta_eps_ind = []
         for i in range(len(data["xcorr"])):
             if data["xcorr"][i] > xstart and data["xcorr"][i] < xend:
@@ -78,6 +82,8 @@ def subtract_dark(corrtags, datadir, fact=1, outdir=".", overwrite=False):
                         delta_eps = pred_noise[y, int(x/fact)] / float(fact)
                         logic[y,x] = 1
                         delta_eps_ind = delta_eps / float(nevents[y,x])
+                        if np.isnan(delta_eps_ind):
+                            delta_eps_ind = 0
         #                outstr = f"{data['epsilon'][i]}\t{delta_eps}\t{delta_eps_ind}\n"
                         data["epsilon"][i] -= delta_eps_ind
         #                wwf.write(outstr)
@@ -153,13 +159,14 @@ def subtract_dark(corrtags, datadir, fact=1, outdir=".", overwrite=False):
                 new_events["pha"][i] = 10
                 new_events["dq"][i] = 0
                 new_events["epsilon"][i] = -pred_noise[inds[0][i], int(inds[1][i]/fact)] / fact
-                 
             data = np.concatenate([data, new_events])
+        nans = np.isnan(data["EPSILON"])
+        data["EPSILON"][nans] = 0
         hdulist[1].data = data
         hdulist.writeto(outfile, overwrite=overwrite)
         with fits.open(outfile, mode="update") as hdulist:
             hdr0 = hdulist[0].header
-            hdr0.set("ACDC", "COMPLETE")
+            hdr0.set("ACDCCORR", "COMPLETE")
         print(f"Wrote {outfile}")
 
         pred_noise_af.close() 

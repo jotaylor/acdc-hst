@@ -23,7 +23,8 @@ def load_connection(dbname, echo=False):
             connectivity and behavior.
     """
 
-    with open("settings.yaml", "r") as f:
+    cwd = os.path.dirname(os.path.abspath(__file__))
+    with open(os.path.join(cwd, "settings.yaml"), "r") as f:
         settings = yaml.load(f, Loader=yaml.SafeLoader)
         dbsettings = settings["dbsettings"][dbname]
 

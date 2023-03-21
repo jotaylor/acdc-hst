@@ -1,6 +1,6 @@
-# Another COS Background Correction (ACDC) ⚡
+# Another COS Dark Correction (ACDC) ⚡
 
-## Another background correction?
+## Another dark correction?
 COS spectroscopic science in the extreme UV regime is limited by detector 
 background noise. The COS pipeline, [`calcos`](https://github.com/spacetelescope/calcos) 
 does not perform an optimized 

@@ -65,13 +65,16 @@ def populate_darkevents(files, dbname="dark_events", db_table=DarkEvents):
                 events_table = tables["other"]
             else:
                 events_table = tables[hv]
-        mjdstart = hdr1["EXPSTART"]
+        mjdstart0 = hdr1["EXPSTART"]
+        mjdstart = np.float64(mjdstart0)
         sdqflags = hdr1["sdqflags"]
 
         good = np.where(data["dq"] & sdqflags == 0)[0]
 
+        timearr0 = data["time"]
+        timearr = timearr0.astype(np.float64) 
         for i in good:
-            time = mjdstart + data["time"][i]/60/60/24
+            time = mjdstart + timearr[i]/60./60./24.
             event_data = {"xcorr": float(data["xcorr"][i]),
                           "ycorr": float(data["ycorr"][i]),
                           "pha": int(data["pha"][i]),
@@ -83,7 +86,7 @@ def populate_darkevents(files, dbname="dark_events", db_table=DarkEvents):
             all_events_rows.append(event_data)
 
         insert0 = timer()
-        events_table.insert().execute(all_events_rows)
+        events_table.insert().execute(all_events_row)
         insert1 = timer()
         print("File {}/{}".format(fileno+1, len(files))) 
 

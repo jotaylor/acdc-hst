@@ -8,18 +8,17 @@ import datetime
 import argparse
 import glob
 import copy
-
 import asdf
 from astropy.io import fits
 from astropy.table import Table
 from calcos import ccos
-
+import numpy.ma as ma
 import numpy as np
 import pandas as pd
 import dask
-
 import matplotlib.pyplot as plt
 from matplotlib.backends.backend_pdf import PdfPages
+from astropy.convolution import Gaussian2DKernel, interpolate_replace_nans
 
 from acdc.database.query_cos_dark import files_by_mjd
 
@@ -43,7 +42,8 @@ class Superdark():
         self.dayint = dayint
         self.bin_x = bin_x
         self.bin_y = bin_y
-        
+        self.overwrite = overwrite
+
         self.phastart = phastart
         self.phaend = phaend
         if bin_pha == "all":
@@ -151,7 +151,7 @@ class Superdark():
         self.bin_yend = self.yend // self.bin_y
 
 
-    def create_superdark(self):
+    def create_superdark(self, dark_df=None):
 
         @dask.delayed
         def _bin_dark(self, dark_df, phastart, phaend):
@@ -177,33 +177,34 @@ class Superdark():
             pha_images[key] = binned_inner
             return pha_images, total_exptime
 
-        notfilled = True
-        self.pha_images = {}
         runstart = datetime.datetime.now()
         print("\nStart time: {}".format(runstart))
-        dark_dfs = []
-        total_days = 0
         total_exptime = 0
         total_files = 0
-        for k in range(len(self.mjdstarts)):
-            start = self.mjdstarts[k]
-            done = False
-            while done is False:
-                total_days += self.dayint
-                if total_days > self.ndays[k]:
-                    total_days = self.ndays[k]
-                    done = True
-                end = start + self.dayint
-                if end > self.mjdends[k]:
-                    end = self.mjdends[k]
-                print(f"Using darks from MJD {start:,}-{end:,}; {total_days}/{self.ndays[k]} days")
-                print("   Querying...")
-                dark_df = files_by_mjd(start, end, segment=self.segment, hv=self.hv)
-                dark_dfs.append(dark_df)
-                print("   Query done")
-                start = end
-
-        dark_df = pd.concat(dark_dfs)
+        self.pha_images = {}
+        if dark_df is None:
+            notfilled = True
+            dark_dfs = []
+            total_days = 0
+            for k in range(len(self.mjdstarts)):
+                start = self.mjdstarts[k]
+                done = False
+                while done is False:
+                    total_days += self.dayint
+                    if total_days > self.ndays[k]:
+                        total_days = self.ndays[k]
+                        done = True
+                    end = start + self.dayint
+                    if end > self.mjdends[k]:
+                        end = self.mjdends[k]
+                    print(f"Using darks from MJD {start:,}-{end:,}; {total_days}/{self.ndays[k]} days")
+                    print("   Querying...")
+                    dark_df = files_by_mjd(start, end, segment=self.segment, hv=self.hv)
+                    dark_dfs.append(dark_df)
+                    print("   Query done")
+                    start = end
+            dark_df = pd.concat(dark_dfs)
+        
         delayed_bin = [_bin_dark(self, dark_df, self.pha_bins[i], self.pha_bins[i+1]) for i in range(len(self.pha_bins)-1)]
         out = dask.compute(*delayed_bin, scheduler='multiprocessing', num_workers=12)
         print("   Binning done")
@@ -227,13 +228,14 @@ class Superdark():
         self.total_files = len(dark_df["fileloc"].values)
 
         # Write out ASDF file
-        self.write_superdark(self.pha_images)
+        self.write_superdark()
         runend = datetime.datetime.now()
         print("End time: {}".format(runend))
         print("Total time: {}".format(runend-runstart))
 
     
-    def write_superdark(self, data_dict):
+    def write_superdark(self, user_outfile=None, overwrite=False):
+        data_dict = self.pha_images
         data_dict["xstart"] = self.xstart
         data_dict["ystart"] = self.ystart
         data_dict["phastart"] = self.phastart
@@ -252,8 +254,13 @@ class Superdark():
         data_dict["total_files"] = self.total_files
         af = asdf.AsdfFile(data_dict)
         today = datetime.datetime.now().strftime("%d%b%y-%H:%M:%S")
-        if self.outfile is None:
+        if self.outfile is None and user_outfile is None:
             self.outfile = f"superdark_{self.segment}_{self.hv}_{today}.asdf"
+        elif self.outfile is None and user_outfile is not None:
+            self.outfile = user_outfile
+        if os.path.exists(self.outfile):
+            assert sum([overwrite, self.overwrite]) > 0, f"Output superdark {self.outfile} already exists and overwrite is False"
+
         af.write_to(self.outfile)
         print(f"Wrote {self.outfile}")
 
@@ -346,8 +353,8 @@ class Superdark():
 
         return final_image
 
-    
-    def bin_superdark(self, bin_x, bin_y, pha_bins=None, outfile=None, verbose=True):
+
+    def bin_superdark(self, bin_x, bin_y, pha_bins=None, outfile=None, verbose=True, writefile=True):
         
         # Bin across PHA
         self.pha_images = {}
@@ -365,14 +372,15 @@ class Superdark():
             self.pha_bins = np.array(pha_bins)
             self.get_pha_bins()
             self.superdarks = superdarks
-       
-        if outfile is None: 
+        
+        infile = self.outfile
+        if outfile is None and writefile is True:
             nowdt = datetime.datetime.now()
             now = nowdt.strftime("%d%b%Y")
-            outfile = self.outfile.replace(".asdf", f"binned_{now}.asdf")
+            outfile = self.outfile.replace(".asdf", f"_binned_{now}.asdf")
         self.outfile = outfile
-        if os.path.exists(outfile) and self.overwrite is False:
-            print(f"WARNING: Output superdark {outfile} already exists and overwrite is False, exiting...")
+        if writefile is True and self.overwrite is False and os.path.exists(outfile):
+            print(f"WARNING: Output superdark {outfile} already exists and overwrite is False, skipping...")
             return
 
         sh = np.shape(self.superdarks[0])
@@ -387,8 +395,6 @@ class Superdark():
         
         self.bin_x *= bin_x
         self.bin_y *= bin_y
-        pdffile = os.path.join(self.outdir, self.outfile.replace("asdf", "pdf"))
-        pdf = PdfPages(pdffile)
         # Bin in spatial directions
         for i,sd in enumerate(self.superdarks):
             phastart = self.pha_bins[i]
@@ -404,11 +410,15 @@ class Superdark():
             key = f"pha{phastart}-{phaend}"
             self.pha_images[key] = binned
             rate = binned/self.total_exptime
+            zeroinds = np.where(binned == 0)
+            nzero = len(zeroinds[0])
             if verbose is True:
-                print(f"For PHAs {phastart} through {phaend}")
+                print("")
+                print(f"Binning superdark {infile}")
+                print(f"Binning PHAs {phastart} through {phaend}")
                 print(f"Binning by X={self.bin_x}, Y={self.bin_y}")
                 print(f"\tTotal number of events: {np.sum(binned):,}")
-                print(f"\tTotal exptime of superdark: {self.total_exptime:,}")
+                print(f"\tTotal exptime [s] of superdark: {self.total_exptime:,.1f}")
                 print(f"\tMinimum number of events in a binned pixel: {np.min(binned)}")
                 print(f"\tMaximum number of events in a binned pixel: {np.max(binned)}")
                 print(f"\tMean number of events per binned pixel: {np.mean(binned):.1f}")
@@ -417,6 +427,20 @@ class Superdark():
                 print(f"\tMean countrate per binned pixel: {np.mean(rate):.2e}")
                 print(f"\t  Standard deviation: {np.std(rate):.2e}")
                 print(f"\tMedian countrate per binned pixel: {np.median(rate):.2e}")
+                print(f"\tNumber of binned pixels with zero events: {nzero:,}")
+
+        if writefile is True:
+            self.write_superdark()
+            self.plot_superdarks()
+
+    def plot_superdarks(self, pdffile=None):
+        if pdffile is None:
+            pdffile = os.path.join(self.outdir, self.outfile.replace("asdf", "pdf"))
+        pdf = PdfPages(pdffile)
+        for i,sd in enumerate(self.superdarks):
+            phastart = self.pha_bins[i]
+            phaend = self.pha_bins[i+1]
+            rate = sd/self.total_exptime
             fig, ax = plt.subplots(figsize=(20,5))
             #vmin = np.mean(rate) - 3*np.std(rate)
             vmin = np.median(rate) - np.median(rate)*0.5
@@ -424,33 +448,51 @@ class Superdark():
                 vmin = 0
             #vmax = np.mean(rate) + 3*np.std(rate)
             vmax = np.median(rate) + np.median(rate)*0.5
-            im = ax.imshow(rate, aspect="auto",
+            im = ax.imshow(rate, aspect="auto", interpolation="nearest", 
                            origin="lower", cmap="inferno", vmin=vmin, vmax=vmax)
             fig.colorbar(im, label="Counts/s", format="%.2e")
-
             ax.set_title(f"{self.segment}; HV={self.hv}; MJD {self.mjdstarts}-{self.mjdends}; PHA {phastart}-{phaend}; X bin={self.bin_x} Y bin={self.bin_y}")
             plt.tight_layout()
             pdf.savefig(fig)
         pdf.close()
         print(f"Wrote {pdffile}")
 
-        self.write_superdark(self.pha_images)
 
-    def screen_counts(self, verbose=True, sigma=10):
+    # Should investigate if this can be replaced with typical sigma clipping
+    def screen_counts(self, verbose=True, sigma=10, mask=False, interpolate=False, interp_kernel=None,  method=np.median, exclude_zeros=True):
         for i,sd in enumerate(self.superdarks):
             phastart = self.pha_bins[i]
             phaend = self.pha_bins[i+1]
             key = f"pha{phastart}-{phaend}"
-            avg = np.mean(sd)
-            std = np.std(sd)
+            if exclude_zeros is True:
+                nonzeroinds = np.where(sd > 0)
+                sd_stats = sd[nonzeroinds]
+            else:
+                sd_stats = sd
+            mid = method(sd_stats)
+            std = np.std(sd_stats)
             sigma_cutoff = (std*sigma)
-            bad = np.where(sd > (avg+sigma_cutoff))
+            bad = np.where(sd > (mid+sigma_cutoff))
             if len(bad[0]) == 0:
                 continue
             if verbose is True:
-                print(f"{len(bad[0])} pixels have counts above {sigma}sigma, zeroing out now...")
-            sd[bad] = 0.0
-            self.superdarks[i] = sd
-            self.pha_images[key] = sd
+                print(f"{len(bad[0])} pixels have counts above {sigma}sigma for {key}")
+
+            if interpolate is True:
+                if interp_kernel is None:
+                    kernel = Gaussian2DKernel(x_stddev=1, x_size=11, y_size=3) # 3x3 box
+                # From https://docs.astropy.org/en/stable/convolution/index.html
+                sd[bad] = np.nan
+                interp_sd = interpolate_replace_nans(sd, kernel)
+                self.superdarks[i] = interp_sd
+                self.pha_images[key] = interp_sd
+            elif mask is True:
+                sd_masked = ma.masked_greater_equal(sd, mid+sigma_cutoff)
+                self.superdarks[i] = sd_masked
+                self.pha_images[key] = sd_masked
+            else:
+                sd[bad] = 0.0
+                self.superdarks[i] = sd
+                self.pha_images[key] = sd
 
 

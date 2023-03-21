@@ -52,7 +52,7 @@ def download_parser():
     parser.add_argument(dest="destdir",
                         help="Directory to download superdarks into")
     args = parser.parse_args()
-#    wget_superdarks(args.destdir)
+    wget_superdarks(args.destdir)
     unzip_superdarks(args.destdir)
 
 if __name__ == "__main__":

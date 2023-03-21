@@ -8,12 +8,14 @@ calibrated using CalCOS to create custom x1d files. x1d files should be coadded
 offline in order to increase SNR.
 """
 
+import sys
 from collections import defaultdict
 import argparse
 import os
 import glob
 import datetime
 from astropy.io import fits
+import asdf
 import calcos
 
 from acdc.predict_dark_level1 import predict_dark
@@ -38,7 +40,9 @@ class Acdc():
     """
     
     def __init__(self, indir, darkcorr_outdir, x1d_outdir=None, binned=False, 
-                 superdark_dir=None, segment=None, hv=None, overwrite=False):
+                 segment=None, hv=None, overwrite=False,
+                 exclude_lya=False, superdark_dir=None, 
+                 calibrate=True):
         """
         Args:
             indir (str): Input directory that houses corrtags to correct.
@@ -48,19 +52,26 @@ class Acdc():
             superdark_dir (str): Location of superdarks. 
         """
 
+        self.calibrate = calibrate
         self.overwrite = overwrite
         self.indir = indir
+        self.exclude_lya = exclude_lya
         if superdark_dir is None:
             try:
                 superdark_dir = os.environ["ACDC_SUPERDARKS"]
             except KeyError as e:
-                print(e.message)
-                print("You must define the $ACDC_SUPERDARKS environment variable- this is where all superdarks are located")
+                print("ERROR: You must supply the supedark directory or define the $ACDC_SUPERDARKS environment variable- this is where all superdarks are located")
+                print("Exiting")
+                sys.exit()
         self.superdark_dir = superdark_dir
 
         self.darkcorr_outdir = darkcorr_outdir
         self.binned = binned
-        self.segment = segment.upper()
+        if segment is not None:
+            segment = segment.upper()
+        self.segment = segment 
+        if hv is not None:
+            hv = int(hv)
         self.hv = hv 
         now = datetime.datetime.now()
         self.x1d_outdir = os.path.join(darkcorr_outdir, f"cal_{now.strftime('%d%b%Y')}")
@@ -68,7 +79,7 @@ class Acdc():
             os.makedirs(darkcorr_outdir)
         corrtags = glob.glob(os.path.join(indir, "*corrtag*fits"))
         self.corr_dict = self.sort_corrtags(corrtags)
-        self.dark_dict = self.sort_superdarks()
+        self.dark_dict = self.get_best_superdarks()
 
     
     def sort_corrtags(self, corrtags):
@@ -92,65 +103,48 @@ class Acdc():
                 if file_segment != self.segment:
                     continue
             if self.hv is not None:
-                if file_hv != self.hv:
+                if int(file_hv) != self.hv:
                     continue
             corr_dict[f"{file_segment}_{file_hv}"].append(item)
+        assert len(corr_dict) != 0, "No corrtags found that match segment and HV constraints"
         return corr_dict
 
     
-    def sort_superdarks(self):
+    def get_best_superdarks(self):
         """Sort superdarks into a dictionary based on segment and HV setting.
         
         Returns:
-            dark_dict (dict): Nested dictionary where each key is the segment+HV setting
-                and each value is a dictionary where each key is the type of superdark 
-                (either 'active' or 'quiescent') and each value is the superdark name.
+            dark_dict (dict): Dictionary where each key is the segment+HV setting
+                and each value is a list of all applicable superdarks. 
         """
-
-#TODO - handle multiple superdarks per activity period
-        darks0 = glob.glob(os.path.join(self.superdark_dir, "superdark*.asdf"))
+        all_darks = glob.glob(os.path.join(self.superdark_dir, "*superdark*.asdf"))
         if self.binned is False:
-            darks = [x for x in darks0 if "phabinned" not in x]
+            darks = [x for x in all_darks if "binned" not in x]
         else:
-            darks = [x for x in darks0 if "phabinned" in x]
-        dark_dict = defaultdict(dict)
+            darks = [x for x in all_darks if "binned" in x]
+        dark_dict = defaultdict(list)
+        corr_segments = [x.split("_")[0] for x in self.corr_dict]
+        corr_hvs = [x.split("_")[1] for x in self.corr_dict]
         for dark in darks:
             darkfile = os.path.basename(dark)
             sp = darkfile.split("_")
             segment = sp[1]
             hv = sp[2]
-            period = sp[-1].split(".")[0]
-            dark_dict[f"{segment}_{hv}"][period] = dark
+            if segment in corr_segments and hv in corr_hvs:
+                dark_dict[f"{segment}_{hv}"].append(dark)
+        
+        assert len(dark_dict) != 0, "No matching superdarks found!!"
+        if self.binned is False:
+            print("Matching superdarks:")
+        else:
+            print("Matching binned superdarks:")
+        for k,v in dark_dict.items():
+            for sd in v:
+                print(f"\t{sd}")
+
         return dark_dict
 
-
-    def filter_corrtags(self, corrtags):
-        """Filter corrtags based on HV and segment requirements.
-
-        Args:
-            corrtags (array-like): All corrtags to be corrected.
-
-        Returns:
-            good_corrtags (array-like): All corrtags to be corrected,
-                filtered by the specified HV and segment requirements.
-        """
-        good_corrtags = []
-        for item in corrtags:
-            file_segment = fits.getval(item, "segment")
-            file_hv = fits.getval(item, f"HVLEVEL{file_segment[-1]}", 1)
-            if self.segment is not None and file_segment != self.segment.upper():
-                print(f"File does not match required settings: {item}")
-                continue
-            if self.hv is not None and int(file_hv) != int(self.hv):
-                print(f"File does not match required settings: {item}")
-                continue
-            good_corrtags.append(item)
-        assert len(good_corrtags) != 0, \
-            "No supplied corrtags matched the settings HV={self.hv}, segment={self.segment}"
-        return good_corrtags
-
-
-# TODO- move binning out of custom correction
+    
     def custom_dark_correction(self):
         """Perform the custom dark correction.
 
@@ -161,12 +155,11 @@ class Acdc():
         
         for seg_hv in self.corr_dict:
             corrtags = self.corr_dict[seg_hv]
-            lo_darkname = self.dark_dict[seg_hv]["quiescent"]
-            hi_darkname = self.dark_dict[seg_hv]["active"]
-            predict_dark(corrtags, lo_darkname, hi_darkname, 
+            superdarks = self.dark_dict[seg_hv]
+            predict_dark(corrtags, superdarks, 
                          outdir=self.darkcorr_outdir, binned=self.binned,
                          overwrite=self.overwrite, segment=self.segment,
-                         hv=self.hv)
+                         hv=self.hv, exclude_lya=self.exclude_lya)
             subtract_dark(corrtags, self.darkcorr_outdir, outdir=self.darkcorr_outdir, 
                           overwrite=self.overwrite)
         self.custom_corrtags = glob.glob(os.path.join(self.darkcorr_outdir, "corrected*corrtag*fits"))
@@ -179,6 +172,10 @@ class Acdc():
         method in CalCOS. The TWOZONE extraction method does not work with
         BACKCORR=OMIT.
         """
+
+        if self.calibrate is False:
+            print("Calibration is set to skip, ending ACDC now")
+            return
 
         for item in self.custom_corrtags:
             with fits.open(item, mode="update") as hdulist:
@@ -196,7 +193,17 @@ class Acdc():
                 other = item.replace("_corrtag_b", "_corrtag_a")
             if other in calibrated:
                 continue
-            calcos.calcos(item, outdir=self.x1d_outdir)
+            spl = os.path.basename(item).split("_")
+            wildcard = spl[0] + "_" + spl[1] + "*"
+            wildcard_products = glob.glob(os.path.join(self.x1d_outdir, wildcard))
+            if len(wildcard_products) >= 1 and self.overwrite is True:
+                for item in wildcard_products:
+                    os.remove(item)
+            elif len(wildcard_products) >= 1 and self.overwrite is False:
+                print(f"WARNING: Products already exist and overwrite is False, skipping...")
+                continue
+
+            calcos.calcos(item, outdir=self.x1d_outdir, verbosity=0)
             calibrated.append(item)
             calibrated.append(other)
 

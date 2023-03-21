@@ -1,3 +1,4 @@
+import datetime
 import numpy as np
 import pandas as pd
 
@@ -53,7 +54,7 @@ def get_binning_pars(af):
                                                               
     return binning                                            
 
-def bin_coords(xs, ys, bin_x, bin_y, xstart=0, ystart=0, make_int=False):
+def bin_coords(xs, ys, bin_x, bin_y, xstart=0, ystart=0, make_int=False, as_float=False):
     """
     Given a list of coordinates in X & Y, transform them into the superdark's
     binned (and possibly offset) coordinate system.
@@ -63,8 +64,12 @@ def bin_coords(xs, ys, bin_x, bin_y, xstart=0, ystart=0, make_int=False):
         xs = np.array(xs)
     if not isinstance(ys, np.ndarray):
         ys = np.array(ys)
-    xsnew = (xs - xstart) // bin_x
-    ysnew = (ys - ystart) // bin_y
+    if as_float is True:
+        xsnew = (xs - xstart) / bin_x
+        ysnew = (ys - ystart) / bin_y
+    else:
+        xsnew = (xs - xstart) // bin_x
+        ysnew = (ys - ystart) // bin_y
     if make_int is True:
         xsnew = xsnew.astype(int)
         ysnew = ysnew.astype(int)
