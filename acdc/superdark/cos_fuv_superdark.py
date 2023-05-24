@@ -26,7 +26,9 @@ class Superdark():
     def __init__(self, hv, segment, mjdstarts, mjdends, dayint=100, bin_x=1,
                  bin_y=1, bin_pha=1, phastart=1, phaend=31, pha_bins=None, 
                  gsagtab=None, bpixtab=None, region="inner", outfile=None,
-                 outdir=".", xylimits=None, overwrite=False):
+                 outdir=".", xylimits=None, overwrite=False, sdqflags=8346):
+                 #gsagtab="/grp/hst/cdbs/lref/71j1935gl_gsag.fits", 
+                 #bpixtab="/grp/hst/cdbs/lref/69m20528l_bpix.fits", 
         """
         To keep things consistent, start and stop range are defined the same
         as within python- start is inclusive but stop is EXCLUSIVE. E.g.
@@ -43,6 +45,7 @@ class Superdark():
         self.bin_x = bin_x
         self.bin_y = bin_y
         self.overwrite = overwrite
+        self.sdqflags = sdqflags
 
         self.phastart = phastart
         self.phaend = phaend
@@ -66,6 +69,7 @@ class Superdark():
             self.get_xy_limits()
 
         self.get_gsag_holes()
+        self.fixed_gsag = False 
 #        self.get_bpix_regions()
 
 
@@ -80,10 +84,14 @@ class Superdark():
                    mjdends=af["mjdends"], bin_x=af["bin_x"], bin_y=af["bin_y"],
                    bin_pha=af["bin_pha"], phastart=af["phastart"],
                    phaend=af["phaend"], pha_bins=pha_bins, 
-                   outfile=superdark)
+                   outfile=superdark) 
         self.outfile = superdark
         self.total_exptime = af["total_exptime"]
         self.total_files = af["total_files"]
+        try:
+            self.fixed_gsag = af["fixed_gsag"]
+        except KeyError:
+            self.fixed_gsag = False
         self.overwrite = overwrite
 
         self.pha_images = {}
@@ -156,18 +164,40 @@ class Superdark():
         @dask.delayed
         def _bin_dark(self, dark_df, phastart, phaend):
             pha_images = {} 
+#            dq_images = {} 
             darks = dark_df["fileloc"].values
             assert len(darks) != 0, "ERROR: no darks found at all!!"
                 
             total_exptime = sum([fits.getval(x, "exptime", 1) for x in darks])
-            gsag_df = self.gsag_holes.loc[(self.gsag_holes["DATE"] > self.mjdstarts[0]) & (self.gsag_holes["DATE"] < self.mjdends[0])]
-#            bpix_df = self.bpix_regions
+            # Handle gainsag holes
+            gsag_df = self.gsag_holes.loc[(self.gsag_holes["DATE"] > self.mjdstarts[0]) & 
+                                          (self.gsag_holes["DATE"] < self.mjdends[0])] 
             print(f"   Binning corrtags, {phastart} <= PHA < {phaend}...")
             sum_image = self.bin_corrtags(darks, phastart=phastart, phaend=phaend)
+
+#            ylen,xlen = sum_image.shape
+#            dq_image = np.zeros((ylen, xlen))
+            
+            # Loop through each gainsag hole and set the affected pixels to a false value of 99999
             for j in range(len(gsag_df)):
-                sum_image[gsag_df.iloc[j]["Y0"]:gsag_df.iloc[j]["Y1"], gsag_df.iloc[j]["X0"]:gsag_df.iloc[j]["X1"]] = 99999
-#            for j in range(len(bpix_df)):
-#                sum_image[bpix_df.iloc[j]["Y0"]:bpix_df.iloc[j]["Y1"], bpix_df.iloc[j]["X0"]:bpix_df.iloc[j]["X1"]] = 99999
+                sum_image[gsag_df.iloc[j]["Y0"]:gsag_df.iloc[j]["Y1"], 
+                    gsag_df.iloc[j]["X0"]:gsag_df.iloc[j]["X1"]] = 99999
+
+            ## Handle bad pixel regions
+            #bpix_df = self.bpix_regions
+            #bpix_df = bpix_df.loc[(bpix_df.SDQ == True) & (bpix_df.SEGMENT == self.segment)]
+            ## Loop through each bad pixel region and set affected pixels to a false value of 99999
+            #for j in range(len(bpix_df)):
+            #    sum_image[bpix_df.iloc[j]["Y0"]:bpix_df.iloc[j]["Y1"], 
+            #        bpix_df.iloc[j]["X0"]:bpix_df.iloc[j]["X1"]] = 99999
+
+            ## Handle hotspots
+            #spot_df = self.hotspots
+            #spot_df = spot_df.loc[(spot_df.SEGMENT == self.segment) & (spot_df.START > self.mjdstarts[0]) & (spot_df.STOP < self.mjdends[0])]
+            ## Loop through each hotspot and set affected pixels to a false value of 99999
+            #for j in range(len(spot_df)):
+            #    sum_image[spot_df.iloc[j]["Y0"]:spot_df.iloc[j]["Y1"], spot_df.iloc[j]["X0"]:spot_df.iloc[j]["X1"]] = 99999
+
             tmp = sum_image.reshape(1024 // self.bin_y, self.bin_y,
                                     16384 // self.bin_x, self.bin_x)
             binned = tmp.sum(axis=3).sum(axis=1)
@@ -214,15 +244,15 @@ class Superdark():
             self.pha_images[key] = dct[key]
         total_exptime += out[0][1]
 
-        # Undo 99999 put in for gainsag holes
-        for i in range(len(self.pha_bins)-1):
-            key = f"pha{self.pha_bins[i]}-{self.pha_bins[i+1]}"
-            inds = np.where(self.pha_images[key] >= 99999)
-            print(f"Zeroing out {len(inds[0])} gain sagged pixels for {key}")
-            self.pha_images[key][inds] = 0
-            inds = np.where(self.pha_images[key] >= 99999)
-            assert len(inds[0]) == 0, f"Not all gain sag holes were zeroed for {key}"
-            self.superdarks.append(self.pha_images[key])
+        ## Undo 99999 put in for gainsag holes
+        #for i in range(len(self.pha_bins)-1):
+        #    key = f"pha{self.pha_bins[i]}-{self.pha_bins[i+1]}"
+        #    inds = np.where(self.pha_images[key] >= 99999)
+        #    print(f"Zeroing out {len(inds[0])} gain sagged pixels for {key}")
+        #    self.pha_images[key][inds] = 0
+        #    inds = np.where(self.pha_images[key] >= 99999)
+        #    assert len(inds[0]) == 0, f"Not all gain sag holes were zeroed for {key}"
+        #    self.superdarks.append(self.pha_images[key])
 
         self.total_exptime = total_exptime
         self.total_files = len(dark_df["fileloc"].values)
@@ -252,6 +282,7 @@ class Superdark():
         data_dict["hv"] = self.hv
         data_dict["total_exptime"] = self.total_exptime
         data_dict["total_files"] = self.total_files
+        data_dict["fixed_gsag"] = self.fixed_gsag
         af = asdf.AsdfFile(data_dict)
         today = datetime.datetime.now().strftime("%d%b%y-%H:%M:%S")
         if self.outfile is None and user_outfile is None:
@@ -263,6 +294,56 @@ class Superdark():
 
         af.write_to(self.outfile)
         print(f"Wrote {self.outfile}")
+
+
+    def fix_gsag(self, method="interpolate", kernel=None, row_threshold=.4):
+        # The placeholder 99999 was put in for gainsag holes
+        superdarks = []
+
+        print(f"Looking for rows where >= {int(row_threshold*100)}% of the row is gain-sagged...")
+        for i in range(len(self.pha_bins)-1):
+            key = f"pha{self.pha_bins[i]}-{self.pha_bins[i+1]}"
+            ylen,xlen = self.pha_images[key].shape
+            for j in range(ylen):
+                sagged = np.where(self.pha_images[key][j,:] >= 99999)
+                frac_sagged = len(sagged[0])/xlen
+                if frac_sagged >= row_threshold:
+                    print(f"    {frac_sagged*100:.1f}% of row {j} is gain-sagged, entire row will be corrected")
+                    self.pha_images[key][j,:] = 99999
+
+        # Zero out gain sagged regions
+        if method == "zero":
+            print(f"Zeroing out gain sagged pixels...")
+            for i in range(len(self.pha_bins)-1):
+                key = f"pha{self.pha_bins[i]}-{self.pha_bins[i+1]}"
+                inds = np.where(self.pha_images[key] >= 99999)
+                self.pha_images[key][inds] = 0
+                inds = np.where(self.pha_images[key] >= 99999)
+                assert len(inds[0]) == 0, f"Not all gain sag holes were zeroed for {key}"
+                superdarks.append(self.pha_images[key])
+        elif method == "boost":
+            print("Boosting gain sagged pixels...")
+            for i in range(len(self.pha_bins)-1):
+                key = f"pha{self.pha_bins[i]}-{self.pha_bins[i+1]}"
+                inds = np.where(self.pha_images[key] >= 99999)
+                indsbelow = (inds[0]-1, inds[1])
+                indsabove = (inds[0]+1, inds[1])
+                avg_around = (self.pha_images[key][indsbelow]+self.pha_images[key][indsabove])/2
+                self.pha_images[key][inds] = avg_around
+                superdarks.append(self.pha_images[key])
+        elif method == "interpolate":
+            print("Interpolating over gain sagged pixels...")
+            if kernel is None:
+                kernel = Gaussian2DKernel(x_stddev=.3, y_stddev=.3, x_size=11, y_size=5)
+            for i in range(len(self.pha_bins)-1):
+                key = f"pha{self.pha_bins[i]}-{self.pha_bins[i+1]}"
+                inds = np.where(self.pha_images[key] >= 99999)
+                self.pha_images[key][inds] = np.nan
+                interp_sd = interpolate_replace_nans(self.pha_images[key], kernel)
+                self.pha_images[key] = interp_sd
+                superdarks.append(self.pha_images[key])
+        self.superdarks = superdarks
+        self.fixed_gsag = True 
 
 
     def get_gsag_holes(self):
@@ -285,13 +366,24 @@ class Superdark():
         gsag_df = gsag_df.rename(columns={"LX": "X0", "LY": "Y0"})
         gsag_df["X1"] = gsag_df["X0"] + gsag_df["DX"]
         gsag_df["Y1"] = gsag_df["Y0"] + gsag_df["DY"]
-        gsag_df["BIN_X0"] = gsag_df["X0"]//self.bin_x
-        gsag_df["BIN_X1"] = gsag_df["X1"]//self.bin_x
-        gsag_df["BIN_Y0"] = gsag_df["Y0"]//self.bin_y
-        gsag_df["BIN_Y1"] = gsag_df["Y1"]//self.bin_y
         gsag_df = gsag_df.astype("int32")
 
         self.gsag_holes = gsag_df
+    
+
+    def get_hotspots(self):
+        spot = Table.read(self.spottab, format="fits", hdu=extnum)
+        spot_df = spot.to_pandas()
+        spot_df = spot_df.rename(columns={"LX": "X0", "LY": "Y0"})
+        spot_df["X1"] = spot_df["X0"] + spot_df["DX"]
+        spot_df["Y1"] = spot_df["Y0"] + spot_df["DY"]
+        spot_df = spot_df.astype("int32")
+        str_df = spot_df.select_dtypes([np.object])
+        str_df = str_df.stack().str.decode('utf-8').unstack()
+        for col in str_df:
+            df[col] = str_df[col]
+
+        self.hotspots = spot_df
     
 
     def get_bpix_regions(self):
@@ -300,11 +392,12 @@ class Superdark():
         bpix_df = bpix_df.rename(columns={"LX": "X0", "LY": "Y0"})
         bpix_df["X1"] = bpix_df["X0"] + bpix_df["DX"]
         bpix_df["Y1"] = bpix_df["Y0"] + bpix_df["DY"]
-        bpix_df["BIN_X0"] = bpix_df["X0"]//self.bin_x
-        bpix_df["BIN_X1"] = bpix_df["X1"]//self.bin_x
-        bpix_df["BIN_Y0"] = bpix_df["Y0"]//self.bin_y
-        bpix_df["BIN_Y1"] = bpix_df["Y1"]//self.bin_y
-        bpix_df = bpix_df.astype("int32")
+        # This is to fix the astropy bytes string columns 
+        str_df = bpix_df.select_dtypes([np.object])
+        str_df = str_df.stack().str.decode('utf-8').unstack()
+        for col in str_df:
+            df[col] = str_df[col]
+        bpix_df["SDQ"] =  np.where(bpix_df["DQ"]&self.sdqflags == bpix_df["DQ"], True, False)
 
         self.bpix_regions = bpix_df
 
@@ -447,7 +540,7 @@ class Superdark():
             if vmin < 0:
                 vmin = 0
             #vmax = np.mean(rate) + 3*np.std(rate)
-            vmax = np.median(rate) + np.median(rate)*0.5
+            vmax = np.median(rate) + np.median(rate)*1.
             im = ax.imshow(rate, aspect="auto", interpolation="nearest", 
                            origin="lower", cmap="inferno", vmin=vmin, vmax=vmax)
             fig.colorbar(im, label="Counts/s", format="%.2e")
@@ -480,7 +573,7 @@ class Superdark():
 
             if interpolate is True:
                 if interp_kernel is None:
-                    kernel = Gaussian2DKernel(x_stddev=1, x_size=11, y_size=3) # 3x3 box
+                    kernel = Gaussian2DKernel(x_stddev=.3, y_stddev=.3, x_size=11, y_size=5)
                 # From https://docs.astropy.org/en/stable/convolution/index.html
                 sd[bad] = np.nan
                 interp_sd = interpolate_replace_nans(sd, kernel)
@@ -495,4 +588,21 @@ class Superdark():
                 self.superdarks[i] = sd
                 self.pha_images[key] = sd
 
+
+    def write_fits(self, fitsfile=None):
+        if fitsfile is None:
+            nowdt = datetime.datetime.now()
+            now = nowdt.strftime("%d%b%Y")
+            fitsfile = self.outfile.replace(".asdf", ".fits")
+        self.fitsfile = fitsfile
+        hdr0 = fits.Header()
+        hdr0["suprdark"] = "yay"
+        primary = fits.PrimaryHDU(header=hdr0)
+        hduims = []
+        for i,sd in enumerate(self.superdarks):
+            hdu = fits.ImageHDU(sd)
+            hduims.append(hdu)
+        hdulist = fits.HDUList([primary] + hduims)
+        hdulist.writeto(fitsfile, overwrite=self.overwrite)
+        print(f"Wrote {fitsfile}") 
 
