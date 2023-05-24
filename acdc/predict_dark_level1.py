@@ -57,6 +57,30 @@ COLORS = ["#9970ab", "#5aae61", "#d95f02", "#e7298a", "#66a61e", "#a6cee3",
 LYA_LO = 1213.67 # Angstroms
 LYA_HI = 1217.67 # Angstroms
 
+
+def measure_gsag(corrtag, row_threshold=.4):
+    #gsagtab = fits.getval(corrtag, "gsagtab")
+    #if "$" in gsagtab:
+    #    lref = os.environ["lref"]
+    #    gsagtab = os.path.join(lref, gsagtab.split("$")[1])
+    data = fits.getdata(corrtag)
+    gsaginds = np.where(data["dq"]&8192 == 8192)
+    x = data["xfull"][gsaginds]
+    y = data["yfull"][gsaginds]
+    x = x.astype(int)
+    y = y.astype(int)
+    coords = [(x[i], y[i]) for i in range(len(x))]
+    uniq_coords = list(set(coords))
+    ngsag = len(uniq_coords)
+    nevents = len(data["xfull"])
+    print((ngsag/nevents)*100.)
+    npix = 16777216 #16384*1024
+    det_threshold = (row_threshold*16384)/npix
+    if ngsag/npix >= det_threshold:
+        print("!!!!!!!!!!!!!!!!!!!!!!!!!!!!!")
+        print(f"Number of gain-sagged pixels exceeds threshold!")
+        print("!!!!!!!!!!!!!!!!!!!!!!!!!!!!!")
+
 #@timefunc
 def fun_opt(coeffs, darks, binned_sci, excluded_rows):
     """TODO- fill in
@@ -307,10 +331,12 @@ def predict_dark(corrtags, superdarks, segment=None, hv=None,
             binnedname0 = darkfile.replace(".asdf", "_binned.asdf")
             binnedname = os.path.join(outdir, binnedname0)
             binned_superdarks.append(binnedname)
-            S.screen_counts(verbose=False)
+            S.screen_counts(verbose=False, interpolate=True)
             S.bin_superdark(RESEL[0]*2, RESEL[1]*2, pha_bins=PHA_INCL_EXCL,
                              writefile=False)
-            S.screen_counts(verbose=False, sigma=5, mask=True)
+            S.screen_counts(verbose=False, sigma=5, interpolate=True)
+            if S.fixed_gsag is False:
+                S.fix_gsag()
             S.write_superdark(user_outfile=binnedname)
             S.plot_superdarks()
     else:
@@ -364,9 +390,10 @@ def predict_dark(corrtags, superdarks, segment=None, hv=None,
 #        vmin = np.mean(binned_sci) - 1*np.std(binned_sci)
 #        if vmin < 0:
 #            vmin = 0
-#        vmax = np.mean(binned_sci) + 1*np.std(binned_sci)
         vmin = 0
-        vmax = 10
+        vmax = np.median(binned_sci) + np.median(binned_sci)*2.
+        if vmax < 10:
+            vmax = 10
         sh = np.shape(binned_sci)
         im = ax.imshow(binned_sci, aspect="auto", origin="lower", 
                 vmin=vmin, vmax=vmax, extent=[0, sh[1], 0, sh[0]], interpolation="nearest")
@@ -427,8 +454,13 @@ def predict_dark(corrtags, superdarks, segment=None, hv=None,
 
         # Plot the model superdark
         sh = np.shape(combined_dark1)
+        vmin = np.median(combined_dark1) - np.median(combined_dark1)*0.5
+        if vmin < 0:
+            vmin = 0
+        vmax = np.median(combined_dark1) + np.median(combined_dark1)*2.
         plt.imshow(combined_dark1, aspect="auto", origin="lower",
-                   extent=[0, sh[1], 0, sh[0]], interpolation="nearest")
+                   extent=[0, sh[1], 0, sh[0]], interpolation="nearest",
+                   vmin=vmin, vmax=vmax)
         plt.colorbar(label="Counts/s")
         plt.title(f"{rootname} Combined Superdark", size=25)
         figname = os.path.join(outdir, f"{rootname}_{segment}_combined_dark.png")
