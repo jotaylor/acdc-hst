@@ -197,8 +197,8 @@ class Acdc():
             wildcard = spl[0] + "_" + spl[1] + "*"
             wildcard_products = glob.glob(os.path.join(self.x1d_outdir, wildcard))
             if len(wildcard_products) >= 1 and self.overwrite is True:
-                for item in wildcard_products:
-                    os.remove(item)
+                for prod in wildcard_products:
+                    os.remove(prod)
             elif len(wildcard_products) >= 1 and self.overwrite is False:
                 print(f"WARNING: Products already exist and overwrite is False, skipping...")
                 continue
