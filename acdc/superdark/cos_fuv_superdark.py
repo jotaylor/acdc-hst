@@ -304,8 +304,7 @@ class Superdark():
 
 
     def fix_gsag(self, method="interpolate", kernel=None, row_threshold=.3,
-                 lp1_interpolate=False):
-        # The placeholder 99999 was put in for gainsag holes
+                 lp1_interpolate=None):
         superdarks = []
 
         if self.segment == "FUVA":
@@ -322,31 +321,30 @@ class Superdark():
             for j in range(ylen):
                 #if lp1_lims[0] <= j <= lp1_lims[1] and lp1_interpolate is True:
                 #    print(f"    lp1_interpolate is True, interpolating over row {j}")
-                #    self.pha_images[key][j,:] = 99999
+                #    self.dq_image[j,:] = 1
                 #    continue
                 if lp1_lims[0] <= j <= lp1_lims[1] and lp1_interpolate is False:
                     continue
-                sagged = np.where(self.dq_image[j,:] >= 99999)
+                sagged = np.where(self.dq_image[j,:] == 1)
                 frac_sagged = len(sagged[0])/xlen
                 if frac_sagged >= row_threshold:
                     print(f"    {frac_sagged*100:.1f}% of row {j} is gain-sagged, entire row will be corrected")
-                    self.pha_images[key][j,:] = 99999
+                    self.dq_image[j,:] = 1
 
+        inds = np.where(self.dq_image == 1)
         # Zero out gain sagged regions
         if method == "zero":
             print(f"Zeroing out gain sagged pixels...")
             for i in range(len(self.pha_bins)-1):
                 key = f"pha{self.pha_bins[i]}-{self.pha_bins[i+1]}"
-                inds = np.where(self.pha_images[key] >= 99999)
                 self.pha_images[key][inds] = 0
-                inds = np.where(self.pha_images[key] >= 99999)
-                assert len(inds[0]) == 0, f"Not all gain sag holes were zeroed for {key}"
+                #inds = np.where(self.pha_images[key] >= 99999)
+                #assert len(inds[0]) == 0, f"Not all gain sag holes were zeroed for {key}"
                 superdarks.append(self.pha_images[key])
         elif method == "boost":
 #            print("Boosting gain sagged pixels...")
             for i in range(len(self.pha_bins)-1):
                 key = f"pha{self.pha_bins[i]}-{self.pha_bins[i+1]}"
-                inds = np.where(self.pha_images[key] >= 99999)
                 indsbelow = (inds[0]-1, inds[1])
                 indsabove = (inds[0]+1, inds[1])
                 avg_around = (self.pha_images[key][indsbelow]+self.pha_images[key][indsabove])/2
@@ -358,7 +356,6 @@ class Superdark():
                 kernel = Gaussian2DKernel(x_stddev=.3, y_stddev=.3, x_size=11, y_size=5)
             for i in range(len(self.pha_bins)-1):
                 key = f"pha{self.pha_bins[i]}-{self.pha_bins[i+1]}"
-                inds = np.where(self.pha_images[key] >= 99999)
                 self.pha_images[key][inds] = np.nan
                 interp_sd = interpolate_replace_nans(self.pha_images[key], kernel)
                 self.pha_images[key] = interp_sd
