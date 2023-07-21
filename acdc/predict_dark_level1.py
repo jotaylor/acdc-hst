@@ -23,6 +23,7 @@ Command line-arguments:
 """
 import datetime
 from collections import defaultdict
+import itertools
 import copy
 import argparse
 import os
@@ -33,11 +34,16 @@ from astropy.io import fits
 import numpy as np
 import matplotlib.pyplot as plt
 from matplotlib.backends.backend_pdf import PdfPages
+import warnings
+from astropy.units import UnitsWarning
+warnings.filterwarnings("ignore", category=UnitsWarning)
+import pandas as pd
+pd.options.mode.chained_assignment = None
 
-from acdc.superdark.cos_fuv_superdark import Superdark
+from acdc.superdark.cos_fuv_superdark import Superdark, get_gsag_holes
 from acdc.database.calculate_dark import get_aperture_region
 from acdc.analysis.compare_backgrounds import smooth_array
-from acdc.utils.utils import bin_coords, timefunc
+from acdc.utils.utils import bin_coords, timefunc, get_psa_wca
 
 
 # Hardcoded constant values
@@ -58,28 +64,89 @@ LYA_LO = 1213.67 # Angstroms
 LYA_HI = 1217.67 # Angstroms
 
 
-def measure_gsag(corrtag, row_threshold=.4):
-    #gsagtab = fits.getval(corrtag, "gsagtab")
-    #if "$" in gsagtab:
-    #    lref = os.environ["lref"]
-    #    gsagtab = os.path.join(lref, gsagtab.split("$")[1])
-    data = fits.getdata(corrtag)
-    gsaginds = np.where(data["dq"]&8192 == 8192)
-    x = data["xfull"][gsaginds]
-    y = data["yfull"][gsaginds]
-    x = x.astype(int)
-    y = y.astype(int)
-    coords = [(x[i], y[i]) for i in range(len(x))]
-    uniq_coords = list(set(coords))
-    ngsag = len(uniq_coords)
-    nevents = len(data["xfull"])
-    print((ngsag/nevents)*100.)
-    npix = 16777216 #16384*1024
-    det_threshold = (row_threshold*16384)/npix
-    if ngsag/npix >= det_threshold:
-        print("!!!!!!!!!!!!!!!!!!!!!!!!!!!!!")
-        print(f"Number of gain-sagged pixels exceeds threshold!")
-        print("!!!!!!!!!!!!!!!!!!!!!!!!!!!!!")
+def measure_gsag(corrtag, row_threshold=.3):
+    if fits.getval(corrtag, "life_adj") != 1:
+        lp1_interpolate = False
+    else:
+        lp1_interpolate = None
+        #lp1_interpolate = True
+    do_interpolate = True
+    gsagtab = fits.getval(corrtag, "gsagtab")
+    if "$" in gsagtab:
+        lref = os.environ["lref"]
+        gsagtab = os.path.join(lref, gsagtab.split("$")[1])
+    segment = fits.getval(corrtag, "segment")
+    hv = fits.getval(corrtag, f"HVLEVEL{segment[-1]}", 1)
+    mjdend = fits.getval(corrtag, "EXPEND", 1)
+    gsag_holes = get_gsag_holes(gsagtab, segment, hv)
+    gsag_df = gsag_holes[gsag_holes["DATE"] < mjdend]
+    if len(gsag_df) == 0:
+        return do_interpolate, lp1_interpolate
+    def prod(x0, y0, dx, dy):
+        out = list(itertools.product(range(x0, x0+dx+1), range(y0, y0+dy+1)))
+        return out
+    coords = []
+    for i in range(len(gsag_df)):
+        s = gsag_df.iloc[i]
+        c = prod(s["X0"], s["Y0"], s["DX"], s["DY"])
+        coords += c
+
+    #gsag_df["COORDS"] = gsag_df.apply(lambda row: prod(row['X0'], row['Y0'], row['DX'], row['DY']), axis=1)
+    #coords0 = gsag_df['COORDS'].to_numpy()
+    #coords = []
+    #for item in coords0: #each element is a list
+    #    coords += item
+#    x = [x[0] for x in coords]
+#    y = [x[1] for x in coords]
+#    plt.plot(x, y, "ko")
+#    plt.show()
+    coords = list(set(coords))
+    coords_x = np.array([x[0] for x in coords])
+    coords_y = np.array([x[1] for x in coords])
+    aa_lims = {"FUVA": (1060, 296, 15250, 734), #xstart, ystart, xend, yend
+               "FUVB": (809,  360, 15182, 785)} #xstart, ystart, xend, yend
+    seg_aa_lims = aa_lims[segment]
+    pix_row = seg_aa_lims[2] - seg_aa_lims[0]
+    for y in range(seg_aa_lims[1], seg_aa_lims[3]+1):
+        inds = np.where((coords_y == y) & (coords_x > seg_aa_lims[0]) & (coords_x < seg_aa_lims[2]))
+        frac = len(inds[0])/pix_row
+        if frac >= row_threshold:
+            do_interpolate = False
+            break
+    print(corrtag, mjdend, do_interpolate, fits.getval(corrtag, "life_adj"))
+
+    print(f"Interpolate={do_interpolate} for {corrtag}")
+    return do_interpolate, lp1_interpolate
+
+#    ngsag = sum(gsag_df["DX"] * gsag_df["DY"])
+#    npix = 16777216 #16384*1024
+#    det_threshold = (row_threshold*16384)/npix
+#    gsag_frac = ngsag/npix
+#    do_interpolate = True
+#    if gsag_frac >= det_threshold:
+#        print("!!!!!!!!!!!!!!!!!!!!!!!!!!!!!")
+#        print(corrtag)
+#        print(f"Number of gain-sagged pixels exceeds threshold!")
+#        print("!!!!!!!!!!!!!!!!!!!!!!!!!!!!!")
+#        do_interpolate = False
+
+#    data = fits.getdata(corrtag)
+#    gsaginds = np.where(data["dq"]&8192 == 8192)
+#    x = data["xfull"][gsaginds]
+#    y = data["yfull"][gsaginds]
+#    x = x.astype(int)
+#    y = y.astype(int)
+#    coords = [(x[i], y[i]) for i in range(len(x))]
+#    uniq_coords = list(set(coords))
+#    ngsag = len(uniq_coords)
+#    nevents = len(data["xfull"])
+#    print((ngsag/nevents)*100.)
+#    npix = 16777216 #16384*1024
+#    det_threshold = (row_threshold*16384)/npix
+#    if ngsag/npix >= det_threshold:
+#        print("!!!!!!!!!!!!!!!!!!!!!!!!!!!!!")
+#        print(f"Number of gain-sagged pixels exceeds threshold!")
+#        print("!!!!!!!!!!!!!!!!!!!!!!!!!!!!!")
 
 #@timefunc
 def fun_opt(coeffs, darks, binned_sci, excluded_rows):
@@ -223,45 +290,6 @@ def bin_science(corrtag, b, segment, cenwave, lp, fact=1, exclude_lya=False):
     return binned, nevents
 
 
-def get_excluded_rows(segment, cenwave, lp, binning, pad_psa=[0,0], pad_wca=[0,0]):
-    """
-    Determine the rows that correspond to the PSA and WCA apertures for a 
-    given segment, cenwave, and lifetime position. Return the row indices in 
-    the binned superdark coordinate system.
-
-    Arguments:
-        segment (str): Get PSA/WCA regions for this segment.
-        cenwave (str): Get PSA/WCA regions for this cenwave.
-        lp (str): Get PSA/WCA regions for this lifetime position.
-        binning (dict): Dictionary that describes the binning information
-            in both the spatial and PHA dimensions.
-    Returns:
-        excluded_rows (array): List of rows to exclude. Corresponds
-            to the PSA and WCA regions.
-        apertures (dict): The excluded rows for each aperture, PSA and WCA.
-    """
-    
-    excluded_rows = np.array(())
-    apertures = {"PSA": None, "WCA": None}
-    pad = {"PSA": pad_psa, "WCA": pad_wca}
-    for aperture in apertures:
-        aperture_regions = get_aperture_region(cenwave=cenwave, aperture=aperture, segments=[segment], life_adj=[lp])
-        box = aperture_regions[segment][f"lp{lp}_{aperture.lower()}_{cenwave}"]
-        xmin0, xmax0, ymin0, ymax0 = box
-        xsnew, ysnew = bin_coords(np.array([xmin0, xmax0]), np.array([ymin0, ymax0]), binning["bin_x"], binning["bin_y"], binning["xstart"], binning["ystart"], as_float=True, make_int=False)
-#        ap_xmin, ap_xmax = xsnew # We don't need x coords
-        ap_ymin, ap_ymax = ysnew
-        ap_ymin = int(np.floor(ap_ymin))
-        ap_ymax = int(np.ceil(ap_ymax))
-        ap_ymin -= pad[aperture][0]
-        ap_ymax += pad[aperture][1]
-        rows = np.arange(ap_ymin, ap_ymax) 
-        apertures[aperture] = rows
-        excluded_rows = np.concatenate((excluded_rows, rows))
-    excluded_rows = excluded_rows.astype(int)
-    return excluded_rows, apertures
-
-
 #@timefunc
 def c_stat(combined_dark, binned_sci, excluded_rows):
     """TODO document
@@ -322,6 +350,11 @@ def predict_dark(corrtags, superdarks, segment=None, hv=None,
     
     # Ensure all input superdarks are binned identically 
     check_superdarks(superdarks)
+
+    for item in corrtags:
+        do_interpolate_gsag, do_interpolate_lp1 = measure_gsag(item)
+        if do_interpolate_gsag is True:
+            break
     
     # If superdarks are not yet binned, bin them.
     if binned is False:
@@ -335,8 +368,8 @@ def predict_dark(corrtags, superdarks, segment=None, hv=None,
             S.bin_superdark(RESEL[0]*2, RESEL[1]*2, pha_bins=PHA_INCL_EXCL,
                              writefile=False)
             S.screen_counts(verbose=False, sigma=5, interpolate=True)
-            if S.fixed_gsag is False:
-                S.fix_gsag()
+            if S.fixed_gsag is False and do_interpolate_gsag is True:
+                S.fix_gsag(lp1_interpolate=do_interpolate_lp1)
             S.write_superdark(user_outfile=binnedname)
             S.plot_superdarks()
     else:
@@ -383,7 +416,7 @@ def predict_dark(corrtags, superdarks, segment=None, hv=None,
         cenwave = fits.getval(item, "cenwave")
         fig, ax = plt.subplots(1, 1, figsize=(20, 8))
         lp = fits.getval(item, "life_adj")
-        excluded_rows, apertures = get_excluded_rows(segment, cenwave, lp, binning)
+        excluded_rows, apertures = get_psa_wca(segment, cenwave, lp, binning)
         rootname0 = fits.getval(item, "rootname")
         rootname = rootname0.lower()
         binned_sci, nevents = bin_science(item, binning, segment, cenwave, lp, exclude_lya=exclude_lya)
