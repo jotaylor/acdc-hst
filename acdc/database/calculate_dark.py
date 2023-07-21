@@ -219,7 +219,8 @@ def get_aperture_region(cenwave=1291, aperture="PSA", segments=["FUVA", "FUVB"],
             crds_1dx = crds.getrecommendations(parameters={"INSTRUME": "COS", 
                                 "DETECTOR": "FUV", "LIFE_ADJ": lp, 
                                 "OBSTYPE": "SPECTROSCOPIC", 
-                                "DATE-OBS": today, "TIME-OBS": "00:00:00"},
+                                "DATE-OBS": today, "TIME-OBS": "00:00:00",
+                                "CENWAVE": cenwave},
                             reftypes=["xtractab"], context=current_pmap, observatory="hst")
             lp_1dx = os.path.join(os.environ["CRDS_PATH"], "references/hst/", 
                                   crds_1dx["xtractab"])
