@@ -130,8 +130,9 @@ class Acdc():
             sp = darkfile.split("_")
             segment = sp[1]
             hv = sp[2]
-            if segment in corr_segments and hv in corr_hvs:
-                dark_dict[f"{segment}_{hv}"].append(dark)
+            for i in range(len(corr_hvs)):
+                if corr_segments[i] == segment and corr_hvs[i] == hv:
+                    dark_dict[f"{segment}_{hv}"].append(dark)
         
         assert len(dark_dict) != 0, "No matching superdarks found!!"
         if self.binned is False:
