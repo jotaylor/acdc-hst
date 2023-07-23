@@ -212,6 +212,7 @@ def check_superdarks(binned_superdarks):
     for k in keys:
         if len(set(dark_vals[k])) != 1:
             print(f"WARNING!!!! Key {k} does not match for all superdarks")
+            print(binned_superdarks)
             bad = True
     assert bad == False, "Cannot continue until discrepancies are resolved"
 
