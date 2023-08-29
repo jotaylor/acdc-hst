@@ -130,8 +130,9 @@ class Acdc():
             sp = darkfile.split("_")
             segment = sp[1]
             hv = sp[2]
-            if segment in corr_segments and hv in corr_hvs:
-                dark_dict[f"{segment}_{hv}"].append(dark)
+            for i in range(len(corr_hvs)):
+                if corr_segments[i] == segment and corr_hvs[i] == hv:
+                    dark_dict[f"{segment}_{hv}"].append(dark)
         
         assert len(dark_dict) != 0, "No matching superdarks found!!"
         if self.binned is False:
@@ -197,8 +198,8 @@ class Acdc():
             wildcard = spl[0] + "_" + spl[1] + "*"
             wildcard_products = glob.glob(os.path.join(self.x1d_outdir, wildcard))
             if len(wildcard_products) >= 1 and self.overwrite is True:
-                for item in wildcard_products:
-                    os.remove(item)
+                for prod in wildcard_products:
+                    os.remove(prod)
             elif len(wildcard_products) >= 1 and self.overwrite is False:
                 print(f"WARNING: Products already exist and overwrite is False, skipping...")
                 continue
