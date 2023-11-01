@@ -120,6 +120,22 @@ def get_solar_data(solardir):
                                open(destination, "wb").write)
                 os.chmod(destination, 0o777)
 
+
+def to_mjd(row):
+    fulltime = row["time-tag"]+"-01 00:00:00"
+    mjd = Time(fulltime, scale="utc", format="iso").mjd
+    return mjd
+
+
+def parse_solar_json(infile):
+    df = pd.read_json(infile)
+    df = df.drop(["ssn", "smoothed_ssn", "observed_swpc_ssn", "smoothed_swpc_ssn"], axis=1)
+    df = df.loc[df["time-tag"] >= '2009-01']
+    df["mjd"] = df.apply(to_mjd, axis=1) 
+    df = df.drop(["time-tag"], axis=1)
+    return df["mjd"].values, df["f10.7"].values
+
+
 def parse_solar_files(files):
     """
     Parse solar data text files and return date and flux.
