@@ -136,7 +136,7 @@ class Acdc():
         
         assert len(dark_dict) != 0, "No matching superdarks found!!"
         if self.binned is False:
-            print("Matching superdarks:")
+            print("Matching unbinned superdarks:")
         else:
             print("Matching binned superdarks:")
         for k,v in dark_dict.items():
