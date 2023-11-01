@@ -1,9 +1,9 @@
 ﻿column,type,description
 id,Integer,Primary key ID number
-xcorr,Decimal(12,5),XCORR location of dark event
-ycorr,Decimal(12,5),YCORR location of dark event
+xcorr,"Decimal(12,5)",XCORR location of dark event
+ycorr,"Decimal(12,5)",YCORR location of dark event
 pha,Integer,PHA value of dark event
-mjd,Decimal(12,5),MJD time of dark event
+mjd,"Decimal(12,5)",MJD time of dark event
 hv,Integer,High Voltage of corresponding dark exposure
 segment,String(5),Segment of corresponding dark exposure
 filename,String(30),Filename of corresponding dark exposure
