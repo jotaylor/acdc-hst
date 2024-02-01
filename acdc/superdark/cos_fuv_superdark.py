@@ -1,7 +1,7 @@
 import os
-os.environ["GOTO_NUM_THREADS"] = "2"
-os.environ["OMP_NUM_THREADS"] = "2"
-os.environ["OPENBLAS_NUM_THREADS"] = "2"
+os.environ["GOTO_NUM_THREADS"] = "5"
+os.environ["OMP_NUM_THREADS"] = "5"
+os.environ["OPENBLAS_NUM_THREADS"] = "5"
 os.environ["CRDS_SERVER_URL"] = "https://hst-crds.stsci.edu"
 import crds
 import datetime
@@ -71,6 +71,7 @@ class Superdark():
 
         self.gsag_holes = get_gsag_holes(self.gsagtab, self.segment, self.hv)
         self.fixed_gsag = False 
+        self.is_binned = False
 #        self.get_bpix_regions()
 
 
@@ -93,6 +94,13 @@ class Superdark():
             self.fixed_gsag = af["fixed_gsag"]
         except KeyError:
             self.fixed_gsag = False
+        try:
+            self.is_binned = af["is_binned"]
+        except KeyError:
+            if "binned" in os.path.basename(superdark):
+                self.is_binned = True
+            else:
+                self.is_binned = False
         self.overwrite = overwrite
 
         self.pha_images = {}
@@ -240,7 +248,7 @@ class Superdark():
             dark_df = pd.concat(dark_dfs)
         
         delayed_bin = [_bin_dark(self, dark_df, self.pha_bins[i], self.pha_bins[i+1]) for i in range(len(self.pha_bins)-1)]
-        out = dask.compute(*delayed_bin, scheduler='multiprocessing', num_workers=12)
+        out = dask.compute(*delayed_bin, scheduler='multiprocessing', num_workers=15)
         print("   Binning done")
         for grp in out:
             dct = grp[0]
@@ -289,6 +297,7 @@ class Superdark():
         data_dict["total_exptime"] = self.total_exptime
         data_dict["total_files"] = self.total_files
         data_dict["fixed_gsag"] = self.fixed_gsag
+        data_dict["is_binned"] = self.is_binned
         data_dict["dq_image"] = self.dq_image
         af = asdf.AsdfFile(data_dict)
         today = datetime.datetime.now().strftime("%d%b%y-%H:%M:%S")
@@ -526,6 +535,8 @@ class Superdark():
                 print(f"\tMedian countrate per binned pixel: {np.median(rate):.2e}")
                 print(f"\tNumber of binned pixels with zero events: {nzero:,}")
 
+        self.is_binned = True 
+
         if writefile is True:
             self.write_superdark()
             self.plot_superdarks()
@@ -553,6 +564,7 @@ class Superdark():
             plt.tight_layout()
             pdf.savefig(fig)
         pdf.close()
+        plt.close('all')
         print(f"Wrote {pdffile}")
 
 
