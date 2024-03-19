@@ -351,7 +351,7 @@ class Superdark():
                 #assert len(inds[0]) == 0, f"Not all gain sag holes were zeroed for {key}"
                 superdarks.append(self.pha_images[key])
         elif method == "boost":
-#            print("Boosting gain sagged pixels...")
+            print("Boosting gain sagged pixels...")
             for i in range(len(self.pha_bins)-1):
                 key = f"pha{self.pha_bins[i]}-{self.pha_bins[i+1]}"
                 indsbelow = (inds[0]-1, inds[1])
@@ -360,7 +360,7 @@ class Superdark():
                 self.pha_images[key][inds] = avg_around
                 superdarks.append(self.pha_images[key])
         elif method == "interpolate":
-#            print("Interpolating over gain sagged pixels...")
+            print("Interpolating over gain sagged pixels...")
             if kernel is None:
                 kernel = Gaussian2DKernel(x_stddev=.3, y_stddev=.3, x_size=11, y_size=5)
             for i in range(len(self.pha_bins)-1):
@@ -612,16 +612,63 @@ class Superdark():
             now = nowdt.strftime("%d%b%Y")
             fitsfile = self.outfile.replace(".asdf", ".fits")
         self.fitsfile = fitsfile
+        if self.overwrite is False and os.path.exists(fitsfile):
+            print(f"{fitsfile} already exists and overwrite is False")
+            return
         hdr0 = fits.Header()
-        hdr0["suprdark"] = "yay"
+        hdr0["suprdark"] = os.path.basename(self.outfile)
+        hdr0["hv"] = self.hv
+        hdr0["segment"] = self.segment 
         primary = fits.PrimaryHDU(header=hdr0)
         hduims = []
         for i,sd in enumerate(self.superdarks):
-            hdu = fits.ImageHDU(sd)
+            hdr = fits.Header()
+            hdr["EXTNAME"] = "SCI"
+            hdr["phastart"] = self.pha_bins[i]
+            hdr["phaend"] = self.pha_bins[i+1]
+            hdr["xstart"] = self.xstart
+            hdr["ystart"] = self.ystart
+            hdr["xend"] = self.xend
+            hdr["yend"] = self.yend
+            hdr["xbinsize"] = self.bin_x
+            hdr["ybinsize"] = self.bin_y
+            hdu = fits.ImageHDU(sd, header=hdr)
             hduims.append(hdu)
         hdulist = fits.HDUList([primary] + hduims)
         hdulist.writeto(fitsfile, overwrite=self.overwrite)
         print(f"Wrote {fitsfile}") 
+
+
+    def write_cube_fits(self, fitsfile=None):
+        if fitsfile is None:
+            nowdt = datetime.datetime.now()
+            now = nowdt.strftime("%d%b%Y")
+            fitsfile = self.outfile.replace(".asdf", "_cube.fits")
+        self.fitsfile = fitsfile
+        if self.overwrite is False and os.path.exists(fitsfile):
+            print(f"{fitsfile} already exists and overwrite is False")
+            return
+        hdr0 = fits.Header()
+        hdr0["suprdark"] = os.path.basename(self.outfile)
+        hdr0["hv"] = self.hv
+        hdr0["segment"] = self.segment 
+        primary = fits.PrimaryHDU(header=hdr0)
+        cube = np.stack(self.superdarks, axis=0)
+        hdr1 = fits.Header()
+        hdr1["EXTNAME"] = "SCI"
+        hdr1["phastart"] = self.pha_bins[0]
+        hdr1["phaend"] = self.pha_bins[-1]
+        hdr1["xstart"] = self.xstart
+        hdr1["ystart"] = self.ystart
+        hdr1["xend"] = self.xend
+        hdr1["yend"] = self.yend
+        hdr1["xbinsize"] = self.bin_x
+        hdr1["ybinsize"] = self.bin_y
+        hdu1 = fits.ImageHDU(cube, header=hdr1)
+        hdulist = fits.HDUList([primary, hdu1])
+        hdulist.writeto(fitsfile, overwrite=self.overwrite)
+        print(f"Wrote {fitsfile}") 
+
 
 def get_gsag_holes(gsagtab, segment, hv):
     extfound = False
