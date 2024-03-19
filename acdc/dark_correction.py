@@ -18,8 +18,8 @@ from astropy.io import fits
 import asdf
 import calcos
 
-from acdc.predict_dark_level1 import predict_dark
-from acdc.subtr_standard import subtract_dark
+from acdc.predict_dark_level import predict_dark
+from acdc.subtract_dark_level import subtract_dark
 
 
 class Acdc():

@@ -11,7 +11,7 @@ import matplotlib.pyplot as plt
 import glob
 import os
 
-from .predict_dark_level1 import bin_science, get_binning_pars
+from .predict_dark_level import bin_science, get_binning_pars
 
 RESEL = [6, 10]
 PHA_INCLUSIVE = [2, 23]
