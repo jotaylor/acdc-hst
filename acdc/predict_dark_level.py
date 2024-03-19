@@ -59,10 +59,12 @@ PHA_INCL_EXCL = [2, 24]
 COLORS = ["#9970ab", "#5aae61", "#d95f02", "#e7298a", "#66a61e", "#a6cee3", 
           "#1f78b4", "#b2df8a", "#33a02c", "#fb9a99", "#e31a1c", "#fdbf6f", 
           "#ff7f00", "#cab2d6", "#6a3d9a", "#ffff99", "#b15928", "#a6cee3"]
-# Lyman alpha wavelength limits
+# Hydrogen Lyman alpha wavelength limits
 LYA_LO = 1213.67 # Angstroms
 LYA_HI = 1217.67 # Angstroms
-
+# Oxygen I wavelength limits
+OI_LO = 1300.5
+OI_HI = 1307.0
 
 def measure_gsag(corrtag, row_threshold=.3):
     if fits.getval(corrtag, "life_adj") != 1:
@@ -235,7 +237,7 @@ def get_binning_pars(af):
 
     return binning
 
-def bin_science(corrtag, b, segment, cenwave, lp, fact=1, exclude_lya=False):
+def bin_science(corrtag, b, segment, cenwave, lp, fact=1, exclude_airglow=False):
     """
     Given a corrtag with lists of events as a function of X, Y, and PHA,
     bin the data into an image using the same bin sizes as the superdark.
@@ -262,10 +264,12 @@ def bin_science(corrtag, b, segment, cenwave, lp, fact=1, exclude_lya=False):
                      (data["ycorr"] >= b["ystart"]) &
                      (data["ycorr"] < b["yend"]))
     filtered0 = data[inds0]
-    if exclude_lya is True:
-        print(f"Excluding pixels affected by Lyman Alpha airglow") 
+    if exclude_airglow is True:
+        print(f"Excluding pixels affected by LyAlpha & OI airglow") 
         bad = (filtered0["wavelength"] > LYA_LO) &\
-              (filtered0["wavelength"] < LYA_HI)
+              (filtered0["wavelength"] < LYA_HI) &\
+              (filtered0["wavelength"] > OI_LO) &\
+              (filtered0["wavelength"] < OI_HI)
         #      (filtered0["ycorr"] > ymin0) &\
         #      (filtered0["ycorr"] < ymax0)
         inds1 = ~bad
@@ -327,7 +331,7 @@ def check_existing(filename, overwrite=False):
 
 
 def predict_dark(corrtags, superdarks, segment=None, hv=None, 
-                 outdir=".", binned=False, overwrite=False, exclude_lya=False,
+                 outdir=".", binned=False, overwrite=False, exclude_airglow=False,
                  x_bin=RESEL[0]*2, y_bin=RESEL[1]*2):
     """Model the superdark for each input science corrtag.
 
@@ -427,7 +431,7 @@ def predict_dark(corrtags, superdarks, segment=None, hv=None,
         excluded_rows, apertures = get_psa_wca(segment, cenwave, lp, binning)
         rootname0 = fits.getval(item, "rootname")
         rootname = rootname0.lower()
-        binned_sci, nevents = bin_science(item, binning, segment, cenwave, lp, exclude_lya=exclude_lya)
+        binned_sci, nevents = bin_science(item, binning, segment, cenwave, lp, exclude_airglow=exclude_airglow)
 #        vmin = np.mean(binned_sci) - 1*np.std(binned_sci)
 #        if vmin < 0:
 #            vmin = 0

@@ -4,7 +4,7 @@ from acdc.dark_correction import Acdc
 
 def run_acdc(indir, darkcorr_outdir, x1d_outdir=None,
              superdark_dir=None, binned=False, hv=None, 
-             segment=None, overwrite=False, exclude_lya=False,
+             segment=None, overwrite=False, exclude_airglow=False,
              calibrate=True):
     """Wrapper script to perform custom dakr correction on an input directory.
     
@@ -19,7 +19,7 @@ def run_acdc(indir, darkcorr_outdir, x1d_outdir=None,
     A = Acdc(indir=indir, darkcorr_outdir=darkcorr_outdir, x1d_outdir=x1d_outdir,
              superdark_dir=superdark_dir,
              binned=binned, segment=segment, hv=hv, overwrite=overwrite,
-             exclude_lya=exclude_lya, calibrate=True)
+             exclude_airglow=exclude_airglow, calibrate=True)
     A.custom_dark_correction()
     A.calibrate_corrtags()
     print(f"\nFINISHED: Products in {A.x1d_outdir}")
@@ -44,16 +44,16 @@ def acdc_parser():
                         help="HV to filter corrtags by")
     parser.add_argument("--segment", default=None,
                         help="Segment to filter corrtags by")
-    parser.add_argument("--lya", default=False, dest="exclude_lya",
+    parser.add_argument("--airglow", default=False, dest="exclude_airglow",
                         action="store_true",
-                        help="Toggle to exclude LyA from science data scaling") 
+                        help="Toggle to exclude LyA and OI airglow from science data scaling") 
     parser.add_argument("--nocal", default=True, dest="calibrate",
                         action="store_false",
                         help="Toggle to turn off CalCOS calibration") 
     args = parser.parse_args()
     run_acdc(args.indir, args.darkcorr_outdir, args.x1d_outdir, 
              args.darkdir, args.binned, args.hv, 
-             args.segment, args.clobber, args.exclude_lya, args.calibrate)
+             args.segment, args.clobber, args.exclude_airglow, args.calibrate)
 
 
 if __name__ == "__main__":

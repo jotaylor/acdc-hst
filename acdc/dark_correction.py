@@ -41,7 +41,7 @@ class Acdc():
     
     def __init__(self, indir, darkcorr_outdir, x1d_outdir=None, binned=False, 
                  segment=None, hv=None, overwrite=False,
-                 exclude_lya=False, superdark_dir=None, 
+                 exclude_airglow=False, superdark_dir=None, 
                  calibrate=True):
         """
         Args:
@@ -55,7 +55,7 @@ class Acdc():
         self.calibrate = calibrate
         self.overwrite = overwrite
         self.indir = indir
-        self.exclude_lya = exclude_lya
+        self.exclude_airglow = exclude_airglow
         if superdark_dir is None:
             try:
                 superdark_dir = os.environ["ACDC_SUPERDARKS"]
@@ -160,7 +160,7 @@ class Acdc():
             predict_dark(corrtags, superdarks, 
                          outdir=self.darkcorr_outdir, binned=self.binned,
                          overwrite=self.overwrite, segment=self.segment,
-                         hv=self.hv, exclude_lya=self.exclude_lya)
+                         hv=self.hv, exclude_airglow=self.exclude_airglow)
             subtract_dark(corrtags, self.darkcorr_outdir, outdir=self.darkcorr_outdir, 
                           overwrite=self.overwrite)
         self.custom_corrtags = glob.glob(os.path.join(self.darkcorr_outdir, "corrected*corrtag*fits"))

@@ -55,7 +55,7 @@ def subtract_dark(corrtags, datadir, fact=1, outdir=".", overwrite=False):
         pha_str = f"pha{PHA_INCL_EXCL[0]}-{PHA_INCL_EXCL[1]}"
         pred_noise = pred_noise_af[pha_str]
         b = get_binning_pars(pred_noise_af)
-        binned, nevents = bin_science(item, b, segment, cenwave, lp, fact, exclude_lya=False)
+        binned, nevents = bin_science(item, b, segment, cenwave, lp, fact, exclude_airglow=False)
         
         hdulist = fits.open(item)
         data = hdulist[1].data
