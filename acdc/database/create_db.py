@@ -1,7 +1,7 @@
 import argparse
 import yaml
 
-from .connect_db import load_connection
+from acdc.database.connect_db import load_connection
 
 def create_db(dbname="cos_dark"):
     """
@@ -19,11 +19,11 @@ def create_db(dbname="cos_dark"):
     session, engine = load_connection(dbname)
     # It's important that the Base from appropriate be schema be used, imported above
     Base.metadata.create_all(engine)
-    print(f"Created database/tables for {dbname}")
+    print(f"Created database & tables for {dbname}")
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
     parser.add_argument("-d", "--db", default="cos_dark",
                         help="Name of database to create")
     args = parser.parse_args()
-    create_sqlite_db(args.db)
+    create_db(args.db)

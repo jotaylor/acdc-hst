@@ -28,8 +28,9 @@ def all_darks(dbname="cos_dark"):
     if TESTING is True: 
         cols = ["expstart", "latitude", "longitude", "solar_flux", "dark_pha11"]
 
+    cols_attr = [getattr(Darks, f) for f in cols]
     # Execute SELECt query with WHERE statements
-    query = session.query(Darks).options(load_only(*cols))
+    query = session.query(Darks).options(load_only(*cols_attr))
 #                .filter(Darks.region == "inner")\
 #                .filter(Darks.segment == "FUVA")
     if TESTING is True:
@@ -78,8 +79,9 @@ def counts_by_mjd(mjdstart, mjdend, morecols=[],
     cols = ["expstart", "solar_flux", "latitude", "longitude", "segment", "hv", "region", "saa_distance"]
     cols += [f"dark_pha{x}" for x in range(0,32)]
     cols += morecols
+    cols_attr = [getattr(Darks, f) for f in cols]
 
-    query = session.query(Darks).options(load_only(*cols))\
+    query = session.query(Darks).options(load_only(*cols_attr))\
                 .filter(Darks.expstart >= mjdstart)\
                 .filter(Darks.expstart < mjdend)
     results = query.all()

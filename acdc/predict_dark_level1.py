@@ -356,7 +356,7 @@ def predict_dark(corrtags, superdarks, segment=None, hv=None,
         do_interpolate_gsag, do_interpolate_lp1 = measure_gsag(item)
         if do_interpolate_gsag is True:
             break
-    
+
     # If superdarks are not yet binned, bin them.
     if binned is False:
         binned_superdarks = []
@@ -375,6 +375,13 @@ def predict_dark(corrtags, superdarks, segment=None, hv=None,
             S.plot_superdarks()
     else:
         binned_superdarks = superdarks
+        for darkfile in superdarks:
+            S = Superdark.from_asdf(darkfile, overwrite=True)
+            S.screen_counts(verbose=False, sigma=5, interpolate=True)
+            if S.fixed_gsag is False and do_interpolate_gsag is True:
+                S.fix_gsag(lp1_interpolate=do_interpolate_lp1)
+            S.write_superdark(user_outfile=darkfile)
+            S.plot_superdarks()
 
     # Plot the binned superdarks 
     pdfname = os.path.join(outdir, "all_binned_superdarks.pdf")

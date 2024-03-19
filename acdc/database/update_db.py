@@ -13,9 +13,9 @@ import acdc.database.create_db as create_db
 from acdc.database.connect_db import load_connection
 from acdc.database.schema import Solar, Darks
 from acdc.database.darkevents_schema import *
-from acdc.database.calculate_dark import measure_darkrate, parse_solar_files, get_aperture_region
-#from within_saa import get_saa_poly
-#from saa_distance import Distance3dPointTo3dCoords
+from acdc.database.calculate_dark import measure_darkrate, parse_solar_json, get_aperture_region
+from acdc.database.saa_models import get_saa_poly
+from acdc.database.saa_distance import Distance3dPointTo3dCoords
 
 # For testing purposes only. If TESTING = True, only one value is recorded per
 # input dataset to save time. If TIMING = True, recorded runtime for each insert
@@ -23,16 +23,16 @@ from acdc.database.calculate_dark import measure_darkrate, parse_solar_files, ge
 TESTING = False
 TIMING  = False
 
-def populate_darkevents(files, dbname="dark_events", db_table=DarkEvents):
+def populate_darkevents(files, dbname="dark_events", db_table="all"):
     """
-    Populate the DarkEvents database table. This can be used to add new files
+    Populate the hstcal database. This can be used to add new files
     or ingest all data from scratch.
     
     Args:
         files (array-like): Names of dark exposure corrtags. 
         dbname (str): The name of the database to update. 
         db_table (:obj:`sqlalchemy.Table`): Name of table to update, 
-            defaults to DarkEvents.
+            defaults to 'all', but could be DarkEvents.
     """
     
     # Connect to database.
@@ -86,7 +86,7 @@ def populate_darkevents(files, dbname="dark_events", db_table=DarkEvents):
             all_events_rows.append(event_data)
 
         insert0 = timer()
-        events_table.insert().execute(all_events_row)
+        events_table.insert().execute(all_events_rows)
         insert1 = timer()
         print("File {}/{}".format(fileno+1, len(files))) 
 
@@ -94,14 +94,14 @@ def populate_darkevents(files, dbname="dark_events", db_table=DarkEvents):
             print("One insert ({} rows) took {:.3g} seconds".format(len(all_events_rows), insert1-insert0))
             print("One file loop took {:.3g} seconds".format(insert1-loop0))
         if TESTING is True:
-            print("Updated table DarkEvents")
+            print("Updated DarkEvents tables")
             return
 
     session.commit()
     session.close()
     engine.dispose()
 
-    print("Updated table DarkEvents")
+    print("Updated DarkEvents tables")
 
 def populate_solar(files, dbname="cos_dark", db_table=Solar):
     """
@@ -124,28 +124,25 @@ def populate_solar(files, dbname="cos_dark", db_table=Solar):
     base = declarative_base(engine)
     solar_table = Table(db_table.__tablename__, base.metadata, autoload=True)
 
-    for fileno,item in enumerate(files):
-        loop0 = timer()    
-        all_solar_rows = []
 
-        time, flux = parse_solar_files(item)
-        for i in range(len(time)): 
-            start = timer()
-            solar_data = {"time": time[i],
-                          "flux": flux[i]}
-            all_solar_rows.append(solar_data)
+    time,flux = parse_solar_json("observed-solar-cycle-indices.json")
 
-        insert0 = timer()
-        solar_table.insert().execute(all_solar_rows)
-        insert1 = timer()
-        print("File {}/{}".format(fileno+1, len(files))) 
+    all_solar_rows = []
 
-        if TIMING is True:
-            print("One insert took {:.3g} seconds".format(insert1-insert0))
-            print("One file loop took {:.3g} seconds".format(insert1-loop0))
-        if TESTING is True:
-            print("Updated table Solar")
-            return
+    for i in range(len(time)): 
+        solar_data = {"time": time[i],
+                      "flux": flux[i]}
+        all_solar_rows.append(solar_data)
+
+    insert0 = timer()
+    solar_table.insert().execute(all_solar_rows)
+    insert1 = timer()
+
+    if TIMING is True:
+        print("One insert took {:.3g} seconds".format(insert1-insert0))
+    if TESTING is True:
+        print("Updated table Solar")
+        return
 
     session.commit()
     session.close()
@@ -175,8 +172,8 @@ def populate_darks(files, dbname="cos_dark", db_table=Darks):
     
     # Handle distance to SAA
     saa_dists = {}
-    saa_lat, saa_lon = get_saa_poly()
 
+    start = datetime.datetime.now()
     for i,item in enumerate(files):
         loop0 = timer()
         all_dark_rows = []
@@ -186,6 +183,9 @@ def populate_darks(files, dbname="cos_dark", db_table=Darks):
             hdr1 = hdulist[1].header
         itemname = os.path.basename(item)
         info, dark = measure_darkrate(item, apertures)
+
+        # The SAA changes over time, so get the right estimation
+        saa_lat, saa_lon = get_saa_poly(max(info["time"]))
         
         # Query the Solar table to get solar fluxes near the dark observation
         # dates. Interpolate to get appropriate values. If Solar table is not
@@ -252,6 +252,7 @@ def populate_darks(files, dbname="cos_dark", db_table=Darks):
     session.commit()
     session.close()
     engine.dispose()
+    end = datetime.datetime.now()
     print("Updated table Darks")
 
 def update_cos_dark(dbname):
@@ -267,20 +268,22 @@ def update_cos_dark(dbname):
     files = glob.glob(os.path.join(settings["dark_dir"]))
     populate_darks(files)
     end = datetime.datetime.now()
+    print("Start time: {}".format(start))
     print("End time: {}".format(end))
     print("Total time: {}".format(end-start))
 
 
-def update_dark_events(tablename):
+def update_dark_events(tablename=None):
     with open("settings.yaml", "r") as f:
         settings = yaml.load(f, Loader=yaml.SafeLoader)
     start = datetime.datetime.now()
     print("Start time: {}".format(start))
     files = glob.glob(os.path.join(settings["dark_dir"]))
     if tablename == None:
-        tablename = DarkEvents
+        tablename = "all"
     populate_darkevents(files, db_table=tablename)
     end = datetime.datetime.now()
+    print("Start time: {}".format(start))
     print("End time: {}".format(end))
     print("Total time: {}".format(end-start))
 
