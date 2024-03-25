@@ -2,6 +2,7 @@ import itertools
 import numpy as np
 import argparse
 from matplotlib import pyplot as plt
+plt.style.use("niceplot.mplstyle")
 import os
 import glob
 from astropy.io import fits
@@ -16,10 +17,12 @@ LOCAL_DARKDIR = "/astro/sveash/cos_dark/final_superdarks"
 PHA_INCLUSIVE = [2, 23]
 PHA_INCL_EXCL = [2, 24]
 # Colorblind-safe palette below
-COLORS = ["#1b9e77", "#d95f02", "#7570b3", "#e7298a", "#66a61e", "#a6cee3",
-          "#1f78b4", "#b2df8a", "#33a02c", "#fb9a99", "#e31a1c", "#fdbf6f",
-          "#ff7f00", "#cab2d6", "#6a3d9a", "#ffff99", "#b15928", "#a6cee3"]
-
+#COLORS = ["#1b9e77", "#d95f02", "#7570b3", "#e7298a", "#66a61e", "#a6cee3",
+#          "#1f78b4", "#b2df8a", "#33a02c", "#fb9a99", "#e31a1c", "#fdbf6f",
+#          "#ff7f00", "#cab2d6", "#6a3d9a", "#ffff99", "#b15928", "#a6cee3"]
+COLORS = ["#9970ab", "#5aae61", "#d95f02", "#e7298a", "#1bddf2", "#1f78b4", 
+          "#fb9a99", "#fdbf6f", "#ffe44b", "#b15928", "#cab2d6", "#b2df8a", 
+          "#000000", "#7a7a7a", "#911cff", "#a6cee3"]
 
 class CosImage():
     def __init__(self, filename, arr, segment, cenwave, hv, exptime, 

@@ -1,6 +1,7 @@
 import datetime
 import argparse
 from matplotlib import pyplot as plt
+plt.style.use("niceplot.mplstyle")
 import numpy as np
 from astropy.io import fits
 import glob

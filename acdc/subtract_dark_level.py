@@ -2,14 +2,17 @@
 Perform a custom dark subtraction on COS corrtag files.
 """
 
+import os
 import argparse
 import copy
 import asdf
 from astropy.io import fits
 import numpy as np
 import matplotlib.pyplot as plt
+dirname = os.path.dirname(__file__)
+stylesheet = os.path.join(dirname, "analysis", "niceplot.mplstyle")
+plt.style.use(stylesheet)
 import glob
-import os
 
 from .predict_dark_level import bin_science, get_binning_pars
 

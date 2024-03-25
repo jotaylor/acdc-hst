@@ -2,6 +2,7 @@ import itertools
 import numpy as np
 import argparse
 from matplotlib import pyplot as plt
+plt.style.use("niceplot.mplstyle")
 import os
 import glob
 from astropy.io import fits

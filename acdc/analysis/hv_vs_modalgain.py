@@ -1,6 +1,7 @@
 import yaml
 import numpy as np
 import matplotlib.pyplot as plt
+plt.style.use("niceplot.mplstyle")
 from scipy.stats import norm
 from sqlalchemy.orm import load_only
 from timeit import default_timer as timer

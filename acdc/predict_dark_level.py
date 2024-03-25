@@ -33,6 +33,9 @@ from scipy.optimize import minimize
 from astropy.io import fits
 import numpy as np
 import matplotlib.pyplot as plt
+dirname = os.path.dirname(__file__)
+stylesheet = os.path.join(dirname, "analysis", "niceplot.mplstyle")
+plt.style.use(stylesheet)
 from matplotlib.backends.backend_pdf import PdfPages
 import warnings
 from astropy.units import UnitsWarning
@@ -214,9 +217,11 @@ def check_superdarks(binned_superdarks):
     for k in keys:
         if len(set(dark_vals[k])) != 1:
             print(f"WARNING!!!! Key {k} does not match for all superdarks")
-            print(binned_superdarks)
             bad = True
-    assert bad == False, "Cannot continue until discrepancies are resolved"
+    if bad is True:
+        for darkfile in binned_superdarks:
+            print(darkfile)
+        raise KeyError("Not all input superdarks are binned identically")
 
 
 def get_binning_pars(af):

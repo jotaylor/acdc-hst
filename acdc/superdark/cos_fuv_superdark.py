@@ -17,7 +17,9 @@ import numpy as np
 import pandas as pd
 import dask
 import matplotlib.pyplot as plt
-#plt.style.use("../analysis/niceplot.mplstyle")
+dirname = os.path.dirname(__file__)
+stylesheet = os.path.join(dirname, "../analysis", "niceplot.mplstyle")
+plt.style.use(stylesheet)
 from matplotlib import ticker
 from matplotlib.backends.backend_pdf import PdfPages
 from astropy.convolution import Gaussian2DKernel, interpolate_replace_nans
