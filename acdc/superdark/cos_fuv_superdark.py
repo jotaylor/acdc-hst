@@ -17,6 +17,8 @@ import numpy as np
 import pandas as pd
 import dask
 import matplotlib.pyplot as plt
+#plt.style.use("../analysis/niceplot.mplstyle")
+from matplotlib import ticker
 from matplotlib.backends.backend_pdf import PdfPages
 from astropy.convolution import Gaussian2DKernel, interpolate_replace_nans
 
@@ -104,7 +106,11 @@ class Superdark():
         self.overwrite = overwrite
 
         self.pha_images = {}
-        self.dq_image = copy.deepcopy(af["dq_image"])
+        try:
+            self.dq_image = copy.deepcopy(af["dq_image"])
+        except KeyError:
+            sh = af[f"pha{pha_bins[0]}-{pha_bins[1]}"].shape
+            self.dq_image = np.zeros(sh[0]*sh[1]).reshape(sh).astype(int)
         for i in range(len(self.pha_bins)-1):
             key = f"pha{self.pha_bins[i]}-{self.pha_bins[i+1]}"
             self.pha_images[key] = copy.deepcopy(af[key])
@@ -541,10 +547,13 @@ class Superdark():
             self.write_superdark()
             self.plot_superdarks()
 
-    def plot_superdarks(self, pdffile=None, vmin=0, vmax=None):
-        if pdffile is None:
-            pdffile = os.path.join(self.outdir, self.outfile.replace("asdf", "pdf"))
-        pdf = PdfPages(pdffile)
+    def plot_superdarks(self, pdffile=None, vmin=0, vmax=None, savepng=False, pngroot=None):
+        if savepng is False:
+            if pdffile is None:
+                pdffile = os.path.join(self.outdir, self.outfile.replace("asdf", "pdf"))
+            pdf = PdfPages(pdffile)
+        if savepng is True and pngroot is None:
+            pngroot = os.path.join(self.outdir, self.outfile.replace(".asdf", ""))
         for i,sd in enumerate(self.superdarks):
             phastart = self.pha_bins[i]
             phaend = self.pha_bins[i+1]
@@ -559,13 +568,26 @@ class Superdark():
                 vmax = np.median(rate) + np.median(rate)*1.
             im = ax.imshow(rate, aspect="auto", interpolation="nearest", 
                            origin="lower", cmap="inferno", vmin=vmin, vmax=vmax)
-            fig.colorbar(im, label="Counts/s", format="%.2e")
+            cbar = fig.colorbar(im, label="Counts/s", format="%.1e", pad=0.01)
+            cbarticks = cbar.get_ticks()
+            if len(cbarticks) > 7: # 1st and last ticks are not shown
+                cbar.ax.locator_params(nbins=5)
             ax.set_title(f"{self.segment}; HV={self.hv}; MJD {self.mjdstarts}-{self.mjdends}; PHA {phastart}-{phaend}; X bin={self.bin_x} Y bin={self.bin_y}")
-            plt.tight_layout()
-            pdf.savefig(fig)
-        pdf.close()
+            ax.set_xlabel("X (binned)")
+            ax.set_ylabel("Y (binned)")
+            xticks = ax.xaxis.get_major_ticks()
+            xticks[0].set_visible(False)
+            xticks[1].set_visible(False)
+            if savepng is False:
+                pdf.savefig(fig, bbox_inches="tight")
+            else:
+                pngfile = pngroot+f"_pha{phastart}-{phaend}.png"
+                fig.savefig(pngfile, bbox_inches="tight", dpi=200)
+                print(f"Wrote {pngfile}")
+        if savepng is False:
+            pdf.close()
+            print(f"Wrote {pdffile}")
         plt.close('all')
-        print(f"Wrote {pdffile}")
 
 
     # Should investigate if this can be replaced with typical sigma clipping
