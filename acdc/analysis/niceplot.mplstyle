@@ -24,7 +24,7 @@ ytick.minor.size: 6
 
 # Lines
 lines.markersize: 10
-lines.linewidth: 3
+lines.linewidth: 2.2
 
 # Title
 figure.titlesize: x-large
