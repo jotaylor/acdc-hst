@@ -42,7 +42,7 @@ class Acdc():
     def __init__(self, indir, darkcorr_outdir, x1d_outdir=None, binned=False, 
                  segment=None, hv=None, overwrite=False,
                  exclude_airglow=False, superdark_dir=None, 
-                 calibrate=True):
+                 superdarks=None, calibrate=True):
         """
         Args:
             indir (str): Input directory that houses corrtags to correct.
@@ -56,14 +56,16 @@ class Acdc():
         self.overwrite = overwrite
         self.indir = indir
         self.exclude_airglow = exclude_airglow
-        if superdark_dir is None:
+        if superdark_dir is None and superdarks is None:
             try:
                 superdark_dir = os.environ["ACDC_SUPERDARKS"]
             except KeyError as e:
-                print("ERROR: You must supply the supedark directory or define the $ACDC_SUPERDARKS environment variable- this is where all superdarks are located")
+                print("ERROR: You must supply the superdark directory or define the $ACDC_SUPERDARKS environment variable- this is where all superdarks are located")
                 print("Exiting")
                 sys.exit()
         self.superdark_dir = superdark_dir
+        if superdarks is None:
+            superdarks = glob.glob(os.path.join(self.superdark_dir, "*superdark*.asdf"))
 
         self.darkcorr_outdir = darkcorr_outdir
         self.binned = binned
@@ -79,7 +81,7 @@ class Acdc():
             os.makedirs(darkcorr_outdir)
         corrtags = glob.glob(os.path.join(indir, "*corrtag*fits"))
         self.corr_dict = self.sort_corrtags(corrtags)
-        self.dark_dict = self.get_best_superdarks()
+        self.dark_dict = self.get_best_superdarks(superdarks)
 
     
     def sort_corrtags(self, corrtags):
@@ -110,18 +112,17 @@ class Acdc():
         return corr_dict
 
     
-    def get_best_superdarks(self):
+    def get_best_superdarks(self, superdarks):
         """Sort superdarks into a dictionary based on segment and HV setting.
         
         Returns:
             dark_dict (dict): Dictionary where each key is the segment+HV setting
                 and each value is a list of all applicable superdarks. 
         """
-        all_darks = glob.glob(os.path.join(self.superdark_dir, "*superdark*.asdf"))
         if self.binned is False:
-            darks = [x for x in all_darks if "binned" not in x]
+            darks = [x for x in superdarks if "binned" not in x]
         else:
-            darks = [x for x in all_darks if "binned" in x]
+            darks = [x for x in superdarks if "binned" in x]
         dark_dict = defaultdict(list)
         corr_segments = [x.split("_")[0] for x in self.corr_dict]
         corr_hvs = [x.split("_")[1] for x in self.corr_dict]
