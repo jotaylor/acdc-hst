@@ -19,7 +19,7 @@ def run_acdc(indir, darkcorr_outdir, x1d_outdir=None,
     A = Acdc(indir=indir, darkcorr_outdir=darkcorr_outdir, x1d_outdir=x1d_outdir,
              superdark_dir=superdark_dir,
              binned=binned, segment=segment, hv=hv, overwrite=overwrite,
-             exclude_airglow=exclude_airglow, calibrate=True)
+             exclude_airglow=exclude_airglow, calibrate=calibrate)
     A.custom_dark_correction()
     A.calibrate_corrtags()
     print(f"\nFINISHED: Products in {A.x1d_outdir}")
