@@ -410,10 +410,12 @@ def predict_dark(corrtags, superdarks, segment=None, hv=None,
         dark_segment = dark_af["segment"]
         fig,ax = plt.subplots(1, 1, figsize=(20,8))
         im = ax.imshow(dark, aspect="auto", origin="lower", interpolation="nearest")
-        fig.colorbar(im, label="Counts")
+        fig.colorbar(im, label="Counts", pad=0.01)
         ax.set_title(f"{os.path.basename(darkfile)}\n{dark_segment} {dark_hv} superdark", size=25)
         pdf.savefig(fig, bbox_inches="tight")
         dark_af.close()
+    pdf.close()
+    print(f"Wrote {pdfname}")
 
     # Now go through each input science corrtag
     for item in corrtags:
@@ -452,9 +454,11 @@ def predict_dark(corrtags, superdarks, segment=None, hv=None,
         ax.axhline(apertures["WCA"][0], lw=2, ls="dashed", color=COLORS[3], label="WCA")
         ax.axhline(apertures["WCA"][-1]+1, lw=2, ls="dashed", color=COLORS[3])
         ax.legend(loc="upper right")
-        fig.colorbar(im, label="Counts")
+        fig.colorbar(im, label="Counts", pad=0.01)
         figname = os.path.join(outdir, f"{rootname}_{segment}_binned_sci.png")
         ax.set_title(f"{rootname} {segment} Binned Science Image", size=25)
+        ax.set_xlabel("X (binned)")
+        ax.set_ylabel("Y (binned)")
         exists = check_existing(figname, overwrite)
         if not exists:
             fig.savefig(figname, bbox_inches="tight")
@@ -462,24 +466,26 @@ def predict_dark(corrtags, superdarks, segment=None, hv=None,
         plt.clf()
         sci_exp = fits.getval(item, "exptime", 1)
 
-        # Plot the counts in each row that are used for scaling-
-        # that is, all non-PSA and non-WCA rows.        
         nrows = np.shape(binned_sci)[0]
         all_rows = np.arange(nrows)
         bkg_rows = list(set(all_rows) - set(excluded_rows))
-        plt.figure(figsize=(20, 8))
-        for i in range(binned_sci.shape[0]):
-            if i not in excluded_rows:
-                plt.plot(binned_sci[i], label=f"Row={i}", color=COLORS[i], alpha=0.8)
-        plt.title(f"{rootname}- all rows that are not in PSA/WCA", size=25)
-        plt.ylim(-0.5, 4)
-        plt.legend(loc="upper right")
-        figname = os.path.join(outdir, f"{rootname}_{segment}_rows.png")
-        exists = check_existing(figname, overwrite)
-        if not exists:
-            plt.savefig(figname, bbox_inches="tight")
-            print(f"Saved non-PSA/WCA rows: {figname}")
-        plt.clf()
+
+        # This plot is not really that useful nowadays.
+#        # Plot the counts in each row that are used for scaling-
+#        # that is, all non-PSA and non-WCA rows.        
+#        fig, ax = plt.subplots(1, 1, figsize=(20, 8))
+#        for i in range(binned_sci.shape[0]):
+#            if i not in excluded_rows:
+#                ax.plot(binned_sci[i], label=f"Row={i}", color=COLORS[i], alpha=0.8)
+#        ax.set_title(f"{rootname}- all rows that are not in PSA/WCA", size=25)
+#        ax.set_ylim(-0.5, 4)
+#        ax.legend(loc="upper right")
+#        figname = os.path.join(outdir, f"{rootname}_{segment}_rows.png")
+#        exists = check_existing(figname, overwrite)
+#        if not exists:
+#            fig.savefig(figname, bbox_inches="tight")
+#            print(f"Saved non-PSA/WCA rows: {figname}")
+#        plt.clf()
 
         # Make an initial guess at the combined superdark which is just an equal
         # contribution from each binned superdark.
@@ -508,22 +514,26 @@ def predict_dark(corrtags, superdarks, segment=None, hv=None,
         if vmin < 0:
             vmin = 0
         vmax = np.median(combined_dark1) + np.median(combined_dark1)*2.
-        plt.imshow(combined_dark1, aspect="auto", origin="lower",
+        fig, ax = plt.subplots(1, 1, figsize=(20, 8))
+        im = ax.imshow(combined_dark1, aspect="auto", origin="lower",
                    extent=[0, sh[1], 0, sh[0]], interpolation="nearest",
                    vmin=vmin, vmax=vmax)
-        plt.colorbar(label="Counts/s")
-        plt.title(f"{rootname} Combined Superdark", size=25)
+        fig.colorbar(im, label="Counts/s", pad=0.01)
+        ax.set_title(f"{rootname} Best Model Superdark", size=25)
+        ax.set_xlabel("X (binned)")
+        ax.set_ylabel("Y (binned)")
         figname = os.path.join(outdir, f"{rootname}_{segment}_combined_dark.png")
         exists = check_existing(figname, overwrite)
         if not exists:
-            plt.savefig(figname, bbox_inches="tight")
+            fig.savefig(figname, bbox_inches="tight")
             print(f"Saved combined dark image: {figname}")
         plt.clf()
 
         # Plot the predicted vs. actual dark rates for all non-PSA and non-WCA rows
         ncols = 3
         nrows = int(np.ceil(len(bkg_rows)/ncols))
-        fig, axes0 = plt.subplots(nrows, ncols, figsize=(25,15))
+        fig, axes0 = plt.subplots(nrows, ncols, figsize=(25, nrows*6))
+        fig.subplots_adjust(hspace=0.3, wspace=0.15)
         axes = axes0.flatten()
         for i in range(len(bkg_rows)):
             row = bkg_rows[i]
@@ -535,16 +545,18 @@ def predict_dark(corrtags, superdarks, segment=None, hv=None,
             if diff > 2*avg_smoothy:
                 ax.annotate("WARNING!\nBAD FIT!", (.05, .85), color=COLORS[2], xycoords="axes fraction")    
             ax.plot(binned_sci[row], color="lightgrey", 
-                    label=f"Sci row", alpha=0.8)
+                    label=f"Science", alpha=0.8)
             ax.plot(combined_dark1[row], color=COLORS[0], 
-                    label=f"Predicted Bkgd", alpha=0.8)
-            ax.plot(smoothx, smoothy, color=COLORS[1], label="Smoothed Sci", alpha=0.8)
+                    label=f"Predicted Bkgd.", alpha=0.8)
+            ax.plot(smoothx, smoothy, color=COLORS[1], label="Smoothed Sci.", alpha=0.8)
 #            ax.axhline(avg, lw=2, color=COLORS[2], label=f"Avg Bkgd={avg:.1f}")
-            ax.set_title(f"Row = {row}", size=15)
-            ax.set_xlabel("X")
+            ax.set_title(f"Binned row = {row}", size=18)
+            ax.set_xlabel("X (binned)")
             ax.set_ylabel("Counts")
-            ax.legend(loc="upper right")
-        fig.suptitle(f"Predicted vs. Actual Dark across non PSA/WCA rows\n{rootname} {segment}", size=25)
+        axes[2].legend(loc="upper right", fontsize=18) 
+        #handles, labels = ax.get_legend_handles_labels()
+        #fig.legend(handles, labels, bbox_to_anchor=(.9, .91), loc="lower right", fontsize=18) 
+        fig.suptitle(f"Predicted vs. actual dark for non-PSA/WCA rows\n{rootname} {segment}", size=25, y=.95)
         figname = os.path.join(outdir, f"{rootname}_{segment}_predicted_dark_bkgd.png")
         exists = check_existing(figname, overwrite)
         if not exists:
@@ -555,24 +567,27 @@ def predict_dark(corrtags, superdarks, segment=None, hv=None,
         # Plot the predicted vs. actual dark rates for all PSA rows
         ncols = 1
         nrows = int(np.ceil(len(apertures["PSA"])/ncols))
-        fig, axes0 = plt.subplots(nrows, ncols, figsize=(25,15))
+        fig, axes0 = plt.subplots(nrows, ncols, figsize=(22, nrows*6))
+        fig.subplots_adjust(hspace=0.3)
         axes = axes0.flatten()
         for i in range(len(apertures["PSA"])):
             row = apertures["PSA"][i]
             ax = axes[i]
             smoothy, smoothx = smooth_array(binned_sci[row], 25)
             avg = np.average(binned_sci[row])
-            ax.plot(binned_sci[row], label="Sci row", color="lightgrey", alpha=0.8)
-            ax.plot(combined_dark1[row], label=f"Predicted dark", color=COLORS[0], alpha=0.8)
-            ax.plot(smoothx, smoothy, color=COLORS[1], label="Smoothed Sci", alpha=0.8)
+            ax.plot(binned_sci[row], label="Science", color="lightgrey", alpha=0.8)
+            ax.plot(combined_dark1[row], label=f"Predicted Bkgd.", color=COLORS[0], alpha=0.8)
+            ax.plot(smoothx, smoothy, color=COLORS[1], label="Smoothed Sci.", alpha=0.8)
 #            ax.axhline(avg, lw=2, color=COLORS[2], label=f"Avg Sci={avg:.1f}")
-            ax.set_title(f"Row = {row}", size=15)
-            ax.set_xlabel("X")
+            ax.set_title(f"Binned row = {row}", size=20)
+            ax.set_xlabel("X (binned)")
             ax.set_ylabel("Counts")
-            ax.legend(loc="upper right")
-            ax.set_ylim(bottom=-1)
+            ax.set_ylim(bottom=-.75)
+        axes[0].legend(loc="upper right", fontsize=18) 
+        #handles, labels = ax.get_legend_handles_labels()
+        #fig.legend(handles, labels, bbox_to_anchor=(.9, .91), loc="lower right", fontsize=18) 
         figname = os.path.join(outdir, f"{rootname}_{segment}_predicted_dark_sci.png")
-        fig.suptitle("Predicted vs. Actual Dark across PSA rows\n{rootname} {segment}", size=25)
+        fig.suptitle(f"Predicted vs. actual dark across PSA rows\n{rootname} {segment}", size=25, y=.97)
         exists = check_existing(figname, overwrite)
         if not exists:
             plt.savefig(figname, bbox_inches="tight")
