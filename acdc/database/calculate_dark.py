@@ -128,6 +128,12 @@ def to_mjd(row):
 
 
 def parse_solar_json(infile):
+    """
+    Parse new NOAA solar data. Taken from:
+    https://www.swpc.noaa.gov/products/solar-cycle-progression
+    which leads to:
+    https://services.swpc.noaa.gov/json/solar-cycle/observed-solar-cycle-indices.json
+    """
     df = pd.read_json(infile)
     df = df.drop(["ssn", "smoothed_ssn", "observed_swpc_ssn", "smoothed_swpc_ssn"], axis=1)
     df = df.loc[df["time-tag"] >= '2009-01']
