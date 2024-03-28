@@ -252,7 +252,7 @@ def plot_data(x, bkg1_default, bkg2_default, bkg1_custom, bkg2_custom, bkg1_lo,
           "superdark": (bkg1_dark + bkg2_dark) / 2.}
     dicts = [bkg1, bkg2, av]
 
-    titles = ["Background 1 (Lower)", "Background 2 (Upper)", "Average"]
+    titles = ["Background Region 1", "Background Region 2", "Average"]
     for i in range(3):
         ax = axes[i]
         d = dicts[i]
