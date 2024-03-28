@@ -574,7 +574,7 @@ class Superdark():
             cbarticks = cbar.get_ticks()
             if len(cbarticks) > 7: # 1st and last ticks are not shown
                 cbar.ax.locator_params(nbins=5)
-            ax.set_title(f"{self.segment}; HV={self.hv}; MJD {self.mjdstarts}-{self.mjdends}; PHA {phastart}-{phaend}; X bin={self.bin_x} Y bin={self.bin_y}")
+            ax.set_title(f"{self.segment}; HV={self.hv}; MJD {self.mjdstarts}-{self.mjdends}; PHA {phastart}-{phaend}; X bin={self.bin_x}, Y bin={self.bin_y}")
             ax.set_xlabel("X (binned)")
             ax.set_ylabel("Y (binned)")
             xticks = ax.xaxis.get_major_ticks()
