@@ -89,9 +89,14 @@ class Superdark():
         self = cls(hv=af["hv"], segment=af["segment"], mjdstarts=af["mjdstarts"], 
                    mjdends=af["mjdends"], bin_x=af["bin_x"], bin_y=af["bin_y"],
                    bin_pha=af["bin_pha"], phastart=af["phastart"],
-                   phaend=af["phaend"], pha_bins=pha_bins, 
-                   outfile=superdark) 
+                   phaend=af["phaend"], pha_bins=pha_bins, xylimits="predetermined", 
+                   outfile=superdark)
+        for k in ["bin_pha", "bin_x", "bin_y", "xstart", "xend", "ystart", 
+                  "yend", "phastart", "phaend"]:
+            setattr(self, k, af[k])
+
         self.outfile = superdark
+        self.outfile_basename = os.path.basename(superdark)
         self.total_exptime = af["total_exptime"]
         self.total_files = af["total_files"]
         try:
@@ -590,6 +595,7 @@ class Superdark():
             pdf.close()
             print(f"Wrote {pdffile}")
         plt.close('all')
+        plt.close(fig)
 
 
     # Should investigate if this can be replaced with typical sigma clipping
@@ -692,6 +698,16 @@ class Superdark():
         hdulist = fits.HDUList([primary, hdu1])
         hdulist.writeto(fitsfile, overwrite=self.overwrite)
         print(f"Wrote {fitsfile}") 
+
+
+    def get_binning_pars(self):
+        keys = ["bin_pha", "bin_x", "bin_y", "xstart", "xend", "ystart", "yend",
+                "phastart", "phaend"]
+        binning = {}
+        for k in keys:
+            binning[k] = getattr(self, k)
+
+        return binning
 
 
 def get_gsag_holes(gsagtab, segment, hv):
