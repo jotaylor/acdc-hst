@@ -1,7 +1,10 @@
+import os
 import yaml
 import numpy as np
 import matplotlib.pyplot as plt
-plt.style.use("niceplot.mplstyle")
+dirname = os.path.dirname(__file__)
+stylesheet = os.path.join(dirname, "niceplot.mplstyle")
+plt.style.use(stylesheet)
 from scipy.stats import norm
 from sqlalchemy.orm import load_only
 from timeit import default_timer as timer
