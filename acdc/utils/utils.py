@@ -1,6 +1,9 @@
+import os
 import datetime
 import numpy as np
 import pandas as pd
+from astropy.io import fits
+
 from acdc.database.calculate_dark import get_aperture_region
 
 def sql_to_df(sql_results, returncols):
@@ -48,12 +51,12 @@ def get_binning_pars(af):
     directions and PHA.                                       
     """                                                       
     keys = ["bin_pha", "bin_x", "bin_y", "xstart", "xend", "ystart", "yend", 
-            "phastart", "phaend"]                             
+            "phastart", "phaend"]
     binning = {}                                              
-    for k in keys:                                            
-        binning[k] = af[k]                                    
-                                                              
-    return binning                                            
+    for k in keys:
+        binning[k] = af[k] 
+    
+    return binning
 
 def bin_coords(xs, ys, bin_x, bin_y, xstart=0, ystart=0, make_int=False, as_float=False):
     """
@@ -141,3 +144,60 @@ def get_psa_wca(segment, cenwave, lp, binning, pad_psa=[0,0], pad_wca=[0,0]):
     excluded_rows = excluded_rows.astype(int)
     return excluded_rows, apertures
 
+def get_background_regions(segment, cenwave, lp=None, date_obs="today", round=True, xtractab=None):
+    if xtractab is None:
+        if date_obs == "today":
+            today = datetime.datetime.now()
+            useafter = today.strftime("%Y-%m-%d")
+
+        if "CRDS_PATH" not in os.environ:
+            if os.path.exists("/grp/crds/cache"):
+                os.environ["CRDS_PATH"] = "/grp/crds/cache"
+            else:
+                raise AssertionError("CRDS_PATH environment variable must first be defined")
+        os.environ["CRDS_SERVER_URL"] = "https://hst-crds.stsci.edu"
+        import crds
+        current_pmap = crds.get_default_context()
+        crds_1dx = crds.getrecommendations(parameters={"INSTRUME": "COS",
+                            "DETECTOR": "FUV", "LIFE_ADJ": lp,
+                            "OBSTYPE": "SPECTROSCOPIC",
+                            "DATE-OBS": useafter, "TIME-OBS": "00:00:00",
+                            "CENWAVE": cenwave},
+                        reftypes=["xtractab"], context=current_pmap, observatory="hst")
+        xtractab = os.path.join(os.environ["CRDS_PATH"], "references/hst/",
+                              crds_1dx["xtractab"])
+    
+    data_1dx = fits.getdata(xtractab, 1)
+    ind = np.where((data_1dx["cenwave"] == cenwave) &
+                   (data_1dx["segment"] == segment) &
+                   (data_1dx["aperture"] == "PSA"))
+    xtract_data = data_1dx[ind]
+    
+    if segment == "FUVA":
+        x0 = 1260
+        x1 = 15119
+    elif segment == "FUVA":
+        x0 = 1000
+        x1 = 14990
+    
+    background_d = {}
+    for region in [1, 2]:
+        b = xtract_data[f"b_bkg{region}"]
+        height = xtract_data[f"b_hgt{region}"]
+        m = xtract_data["slope"]
+        x = np.arange(0, 16384)
+        # the y values tracing the line in the middle of the bkgd parallelogram
+        bkg_midy = m*x + b 
+        bkg_y0 = bkg_midy - height/2.
+        bkg_y1 = bkg_midy + height/2.
+        if round is True:
+            bkg_y0 = np.floor(bkg_y0)
+            bkg_y0 = bkg_y0.astype(int)
+            bkg_y1 = np.ceil(bkg_y1)
+            bkg_y1 = bkg_y1.astype(int)
+        background_d[region] = {}
+        background_d[region]["bkg_y0"] = bkg_y0
+        background_d[region]["bkg_y1"] = bkg_y1
+
+    return background_d
+     
