@@ -74,7 +74,6 @@ def measure_gsag(corrtag, row_threshold=.3):
         lp1_interpolate = False
     else:
         lp1_interpolate = None
-        #lp1_interpolate = True
     do_interpolate = True
     gsagtab = fits.getval(corrtag, "gsagtab")
     if "$" in gsagtab:
@@ -108,6 +107,7 @@ def measure_gsag(corrtag, row_threshold=.3):
     coords = list(set(coords))
     coords_x = np.array([x[0] for x in coords])
     coords_y = np.array([x[1] for x in coords])
+    # Active Area limits from BRFTAB x1u1459il_brf.fits (essentially static)
     aa_lims = {"FUVA": (1060, 296, 15250, 734), #xstart, ystart, xend, yend
                "FUVB": (809,  360, 15182, 785)} #xstart, ystart, xend, yend
     seg_aa_lims = aa_lims[segment]
@@ -118,7 +118,6 @@ def measure_gsag(corrtag, row_threshold=.3):
         if frac >= row_threshold:
             do_interpolate = False
             break
-    print(corrtag, mjdend, do_interpolate, fits.getval(corrtag, "life_adj"))
 
     print(f"Interpolate={do_interpolate} for {corrtag}")
     return do_interpolate, lp1_interpolate
@@ -242,7 +241,7 @@ def get_binning_pars(af):
 
     return binning
 
-def bin_science(corrtag, b, segment, cenwave, lp, fact=1, exclude_airglow=False):
+def bin_science(corrtag, b, fact=1, exclude_airglow=False):
     """
     Given a corrtag with lists of events as a function of X, Y, and PHA,
     bin the data into an image using the same bin sizes as the superdark.
@@ -257,6 +256,9 @@ def bin_science(corrtag, b, segment, cenwave, lp, fact=1, exclude_airglow=False)
     """
     
     aperture = "PSA"
+    segment = fits.getval(corrtag, "segment")
+    cenwave = fits.getval(corrtag, "cenwave")
+    lp = fits.getval(corrtag, "life_adj")
     aperture_regions = get_aperture_region(cenwave=cenwave, aperture=aperture, segments=[segment], life_adj=[lp])
     box = aperture_regions[segment][f"lp{lp}_{aperture.lower()}_{cenwave}"]
     xmin0, xmax0, ymin0, ymax0 = box
@@ -444,8 +446,8 @@ def predict_dark(corrtags, superdarks, segment=None, hv=None,
 #            vmin = 0
         vmin = 0
         vmax = np.median(binned_sci) + np.median(binned_sci)*2.
-        if vmax < 10:
-            vmax = 10
+        if vmax < 6:
+            vmax = 6
         sh = np.shape(binned_sci)
         im = ax.imshow(binned_sci, aspect="auto", origin="lower", 
                 vmin=vmin, vmax=vmax, extent=[0, sh[1], 0, sh[0]], interpolation="nearest")
@@ -518,7 +520,7 @@ def predict_dark(corrtags, superdarks, segment=None, hv=None,
         im = ax.imshow(combined_dark1, aspect="auto", origin="lower",
                    extent=[0, sh[1], 0, sh[0]], interpolation="nearest",
                    vmin=vmin, vmax=vmax)
-        fig.colorbar(im, label="Counts/s", pad=0.01)
+        fig.colorbar(im, label="Counts", pad=0.01)
         ax.set_title(f"{rootname} Best Model Superdark", size=25)
         ax.set_xlabel("X (binned)")
         ax.set_ylabel("Y (binned)")
@@ -549,6 +551,10 @@ def predict_dark(corrtags, superdarks, segment=None, hv=None,
             ax.plot(combined_dark1[row], color=COLORS[0], 
                     label=f"Predicted Bkgd.", alpha=0.8)
             ax.plot(smoothx, smoothy, color=COLORS[1], label="Smoothed Sci.", alpha=0.8)
+            smoothy_max = np.max(smoothy) * 2.
+            ylim = ax.get_ylim()
+            if ylim[1] > smoothy_max:
+                ax.set_ylim(top=smoothy_max)
 #            ax.axhline(avg, lw=2, color=COLORS[2], label=f"Avg Bkgd={avg:.1f}")
             ax.set_title(f"Binned row = {row}", size=18)
             ax.set_xlabel("X (binned)")
@@ -583,6 +589,10 @@ def predict_dark(corrtags, superdarks, segment=None, hv=None,
             ax.set_xlabel("X (binned)")
             ax.set_ylabel("Counts")
             ax.set_ylim(bottom=-.75)
+            smoothy_max = np.max(smoothy) * 2.
+            ylim = ax.get_ylim()
+            if ylim[1] > smoothy_max:
+                ax.set_ylim(top=smoothy_max)
         axes[0].legend(loc="upper right", fontsize=18) 
         #handles, labels = ax.get_legend_handles_labels()
         #fig.legend(handles, labels, bbox_to_anchor=(.9, .91), loc="lower right", fontsize=18) 
