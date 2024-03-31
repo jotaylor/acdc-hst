@@ -232,6 +232,7 @@ def get_aperture_region(cenwave=1291, aperture="PSA", segments=["FUVA", "FUVB"],
     # The active area limits are taken from the COS BRFTAB x1u1459il_brf.fits
     # This file will almost certainly not be updated, so hardcoding is okay.
     aa_xcorr = {"FUVA": [1060, 15250], "FUVB": [809, 15182]}
+    # aa_ycorr = {"FUVA": [296, 734], "FUVB": [360, 785]}
 
     apertures = {"FUVA": {}, "FUVB": {}}
     # For each LP, determine the appropriate xtractab as returned by CRDS on the fly.
