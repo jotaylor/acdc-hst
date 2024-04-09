@@ -554,7 +554,7 @@ class Superdark():
             self.write_superdark()
             self.plot_superdarks()
 
-    def plot_superdarks(self, pdffile=None, vmin=0, vmax=None, savepng=False, pngroot=None):
+    def plot_superdarks(self, pdffile=None, vmin=None, vmax=None, savepng=False, pngroot=None):
         if savepng is False:
             if pdffile is None:
                 pdffile = os.path.join(self.outdir, self.outfile.replace("asdf", "pdf"))
@@ -567,9 +567,10 @@ class Superdark():
             rate = sd/self.total_exptime
             fig, ax = plt.subplots(figsize=(20,5))
             #vmin = np.mean(rate) - 3*np.std(rate)
-            vmin = np.median(rate) - np.median(rate)*0.5
-            if vmin < 0:
-                vmin = 0
+            if vmin is None:
+                vmin = np.median(rate) - np.median(rate)*0.5
+                if vmin < 0:
+                    vmin = 0
             #vmax = np.mean(rate) + 3*np.std(rate)
             if vmax is None:
                 vmax = np.median(rate) + np.median(rate)*1.
@@ -577,6 +578,7 @@ class Superdark():
                            origin="lower", cmap="inferno", vmin=vmin, vmax=vmax)
             cbar = fig.colorbar(im, label="Counts/s", format="%.1e", pad=0.01)
             cbarticks = cbar.get_ticks()
+            # If there are more than 5 tickmarks, reduce it.
             if len(cbarticks) > 7: # 1st and last ticks are not shown
                 cbar.ax.locator_params(nbins=5)
             ax.set_title(f"{self.segment}; HV={self.hv}; MJD {self.mjdstarts}-{self.mjdends}; PHA {phastart}-{phaend}; X bin={self.bin_x}, Y bin={self.bin_y}")
