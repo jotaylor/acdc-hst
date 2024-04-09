@@ -5,10 +5,9 @@ import copy
 import asdf
 import numpy as np
 import matplotlib.pyplot as plt
-try:
-    plt.style.use("niceplot.mplstyle")
-except OSError:
-    pass
+dirname = os.path.dirname(__file__)
+stylesheet = os.path.join(dirname, "../analysis", "niceplot.mplstyle")
+plt.style.use(stylesheet)
 
 def bin_superdark(superdark, bin_x=8, bin_y=2, bin_pha=26, 
                   phastart=3, phaend=28, outdir="."):

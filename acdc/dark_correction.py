@@ -18,8 +18,8 @@ from astropy.io import fits
 import asdf
 import calcos
 
-from acdc.predict_dark_level1 import predict_dark
-from acdc.subtr_standard import subtract_dark
+from acdc.predict_dark_level import predict_dark
+from acdc.subtract_dark_level import subtract_dark
 
 
 class Acdc():
@@ -41,8 +41,8 @@ class Acdc():
     
     def __init__(self, indir, darkcorr_outdir, x1d_outdir=None, binned=False, 
                  segment=None, hv=None, overwrite=False,
-                 exclude_lya=False, superdark_dir=None, 
-                 calibrate=True):
+                 exclude_airglow=False, superdark_dir=None, 
+                 superdarks=None, calibrate=True):
         """
         Args:
             indir (str): Input directory that houses corrtags to correct.
@@ -55,15 +55,17 @@ class Acdc():
         self.calibrate = calibrate
         self.overwrite = overwrite
         self.indir = indir
-        self.exclude_lya = exclude_lya
-        if superdark_dir is None:
+        self.exclude_airglow = exclude_airglow
+        if superdark_dir is None and superdarks is None:
             try:
                 superdark_dir = os.environ["ACDC_SUPERDARKS"]
             except KeyError as e:
-                print("ERROR: You must supply the supedark directory or define the $ACDC_SUPERDARKS environment variable- this is where all superdarks are located")
+                print("ERROR: You must supply the superdark directory or define the $ACDC_SUPERDARKS environment variable- this is where all superdarks are located")
                 print("Exiting")
                 sys.exit()
         self.superdark_dir = superdark_dir
+        if superdarks is None:
+            superdarks = glob.glob(os.path.join(self.superdark_dir, "*superdark*.asdf"))
 
         self.darkcorr_outdir = darkcorr_outdir
         self.binned = binned
@@ -79,7 +81,7 @@ class Acdc():
             os.makedirs(darkcorr_outdir)
         corrtags = glob.glob(os.path.join(indir, "*corrtag*fits"))
         self.corr_dict = self.sort_corrtags(corrtags)
-        self.dark_dict = self.get_best_superdarks()
+        self.dark_dict = self.get_best_superdarks(superdarks)
 
     
     def sort_corrtags(self, corrtags):
@@ -110,18 +112,17 @@ class Acdc():
         return corr_dict
 
     
-    def get_best_superdarks(self):
+    def get_best_superdarks(self, superdarks):
         """Sort superdarks into a dictionary based on segment and HV setting.
         
         Returns:
             dark_dict (dict): Dictionary where each key is the segment+HV setting
                 and each value is a list of all applicable superdarks. 
         """
-        all_darks = glob.glob(os.path.join(self.superdark_dir, "*superdark*.asdf"))
         if self.binned is False:
-            darks = [x for x in all_darks if "binned" not in x]
+            darks = [x for x in superdarks if "binned" not in x]
         else:
-            darks = [x for x in all_darks if "binned" in x]
+            darks = [x for x in superdarks if "binned" in x]
         dark_dict = defaultdict(list)
         corr_segments = [x.split("_")[0] for x in self.corr_dict]
         corr_hvs = [x.split("_")[1] for x in self.corr_dict]
@@ -160,7 +161,7 @@ class Acdc():
             predict_dark(corrtags, superdarks, 
                          outdir=self.darkcorr_outdir, binned=self.binned,
                          overwrite=self.overwrite, segment=self.segment,
-                         hv=self.hv, exclude_lya=self.exclude_lya)
+                         hv=self.hv, exclude_airglow=self.exclude_airglow)
             subtract_dark(corrtags, self.darkcorr_outdir, outdir=self.darkcorr_outdir, 
                           overwrite=self.overwrite)
         self.custom_corrtags = glob.glob(os.path.join(self.darkcorr_outdir, "corrected*corrtag*fits"))

@@ -17,6 +17,10 @@ import numpy as np
 import pandas as pd
 import dask
 import matplotlib.pyplot as plt
+dirname = os.path.dirname(__file__)
+stylesheet = os.path.join(dirname, "../analysis", "niceplot.mplstyle")
+plt.style.use(stylesheet)
+from matplotlib import ticker
 from matplotlib.backends.backend_pdf import PdfPages
 from astropy.convolution import Gaussian2DKernel, interpolate_replace_nans
 
@@ -85,9 +89,14 @@ class Superdark():
         self = cls(hv=af["hv"], segment=af["segment"], mjdstarts=af["mjdstarts"], 
                    mjdends=af["mjdends"], bin_x=af["bin_x"], bin_y=af["bin_y"],
                    bin_pha=af["bin_pha"], phastart=af["phastart"],
-                   phaend=af["phaend"], pha_bins=pha_bins, 
-                   outfile=superdark) 
+                   phaend=af["phaend"], pha_bins=pha_bins, xylimits="predetermined", 
+                   outfile=superdark)
+        for k in ["bin_pha", "bin_x", "bin_y", "xstart", "xend", "ystart", 
+                  "yend", "phastart", "phaend"]:
+            setattr(self, k, af[k])
+
         self.outfile = superdark
+        self.outfile_basename = os.path.basename(superdark)
         self.total_exptime = af["total_exptime"]
         self.total_files = af["total_files"]
         try:
@@ -104,7 +113,11 @@ class Superdark():
         self.overwrite = overwrite
 
         self.pha_images = {}
-        self.dq_image = copy.deepcopy(af["dq_image"])
+        try:
+            self.dq_image = copy.deepcopy(af["dq_image"])
+        except KeyError:
+            sh = af[f"pha{pha_bins[0]}-{pha_bins[1]}"].shape
+            self.dq_image = np.zeros(sh[0]*sh[1]).reshape(sh).astype(int)
         for i in range(len(self.pha_bins)-1):
             key = f"pha{self.pha_bins[i]}-{self.pha_bins[i+1]}"
             self.pha_images[key] = copy.deepcopy(af[key])
@@ -541,31 +554,50 @@ class Superdark():
             self.write_superdark()
             self.plot_superdarks()
 
-    def plot_superdarks(self, pdffile=None, vmin=0, vmax=None):
-        if pdffile is None:
-            pdffile = os.path.join(self.outdir, self.outfile.replace("asdf", "pdf"))
-        pdf = PdfPages(pdffile)
+    def plot_superdarks(self, pdffile=None, vmin=None, vmax=None, savepng=False, pngroot=None):
+        if savepng is False:
+            if pdffile is None:
+                pdffile = os.path.join(self.outdir, self.outfile.replace("asdf", "pdf"))
+            pdf = PdfPages(pdffile)
+        if savepng is True and pngroot is None:
+            pngroot = os.path.join(self.outdir, self.outfile.replace(".asdf", ""))
         for i,sd in enumerate(self.superdarks):
             phastart = self.pha_bins[i]
             phaend = self.pha_bins[i+1]
             rate = sd/self.total_exptime
             fig, ax = plt.subplots(figsize=(20,5))
             #vmin = np.mean(rate) - 3*np.std(rate)
-            vmin = np.median(rate) - np.median(rate)*0.5
-            if vmin < 0:
-                vmin = 0
+            if vmin is None:
+                vmin = np.median(rate) - np.median(rate)*0.5
+                if vmin < 0:
+                    vmin = 0
             #vmax = np.mean(rate) + 3*np.std(rate)
             if vmax is None:
                 vmax = np.median(rate) + np.median(rate)*1.
             im = ax.imshow(rate, aspect="auto", interpolation="nearest", 
                            origin="lower", cmap="inferno", vmin=vmin, vmax=vmax)
-            fig.colorbar(im, label="Counts/s", format="%.2e")
-            ax.set_title(f"{self.segment}; HV={self.hv}; MJD {self.mjdstarts}-{self.mjdends}; PHA {phastart}-{phaend}; X bin={self.bin_x} Y bin={self.bin_y}")
-            plt.tight_layout()
-            pdf.savefig(fig)
-        pdf.close()
+            cbar = fig.colorbar(im, label="Counts/s", format="%.1e", pad=0.01)
+            cbarticks = cbar.get_ticks()
+            # If there are more than 5 tickmarks, reduce it.
+            if len(cbarticks) > 7: # 1st and last ticks are not shown
+                cbar.ax.locator_params(nbins=5)
+            ax.set_title(f"{self.segment}; HV={self.hv}; MJD {self.mjdstarts}-{self.mjdends}; PHA {phastart}-{phaend}; X bin={self.bin_x}, Y bin={self.bin_y}")
+            ax.set_xlabel("X (binned)")
+            ax.set_ylabel("Y (binned)")
+            xticks = ax.xaxis.get_major_ticks()
+            xticks[0].set_visible(False)
+            xticks[1].set_visible(False)
+            if savepng is False:
+                pdf.savefig(fig, bbox_inches="tight")
+            else:
+                pngfile = pngroot+f"_pha{phastart}-{phaend}.png"
+                fig.savefig(pngfile, bbox_inches="tight", dpi=200)
+                print(f"Wrote {pngfile}")
+        if savepng is False:
+            pdf.close()
+            print(f"Wrote {pdffile}")
         plt.close('all')
-        print(f"Wrote {pdffile}")
+        plt.close(fig)
 
 
     # Should investigate if this can be replaced with typical sigma clipping
@@ -668,6 +700,16 @@ class Superdark():
         hdulist = fits.HDUList([primary, hdu1])
         hdulist.writeto(fitsfile, overwrite=self.overwrite)
         print(f"Wrote {fitsfile}") 
+
+
+    def get_binning_pars(self):
+        keys = ["bin_pha", "bin_x", "bin_y", "xstart", "xend", "ystart", "yend",
+                "phastart", "phaend"]
+        binning = {}
+        for k in keys:
+            binning[k] = getattr(self, k)
+
+        return binning
 
 
 def get_gsag_holes(gsagtab, segment, hv):

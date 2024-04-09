@@ -1,8 +1,11 @@
+import os
 import itertools
 import numpy as np
 import argparse
 from matplotlib import pyplot as plt
-import os
+dirname = os.path.dirname(__file__)
+stylesheet = os.path.join(dirname, "niceplot.mplstyle")
+plt.style.use(stylesheet)
 import glob
 from astropy.io import fits
 from scipy import stats
@@ -16,10 +19,12 @@ LOCAL_DARKDIR = "/astro/sveash/cos_dark/final_superdarks"
 PHA_INCLUSIVE = [2, 23]
 PHA_INCL_EXCL = [2, 24]
 # Colorblind-safe palette below
-COLORS = ["#1b9e77", "#d95f02", "#7570b3", "#e7298a", "#66a61e", "#a6cee3",
-          "#1f78b4", "#b2df8a", "#33a02c", "#fb9a99", "#e31a1c", "#fdbf6f",
-          "#ff7f00", "#cab2d6", "#6a3d9a", "#ffff99", "#b15928", "#a6cee3"]
-
+#COLORS = ["#1b9e77", "#d95f02", "#7570b3", "#e7298a", "#66a61e", "#a6cee3",
+#          "#1f78b4", "#b2df8a", "#33a02c", "#fb9a99", "#e31a1c", "#fdbf6f",
+#          "#ff7f00", "#cab2d6", "#6a3d9a", "#ffff99", "#b15928", "#a6cee3"]
+COLORS = ["#9970ab", "#5aae61", "#d95f02", "#e7298a", "#1bddf2", "#1f78b4", 
+          "#fb9a99", "#fdbf6f", "#ffe44b", "#b15928", "#cab2d6", "#b2df8a", 
+          "#000000", "#7a7a7a", "#911cff", "#a6cee3"]
 
 class CosImage():
     def __init__(self, filename, arr, segment, cenwave, hv, exptime, 
@@ -74,16 +79,17 @@ class CosImage():
         xtract_data = xtract[inds]
         b1 = xtract_data["b_bkg1"]                                        
         b2 = xtract_data["b_bkg2"]
-        height = xtract_data["height"]
+        height1 = xtract_data["b_hgt1"]
+        height2 = xtract_data["b_hgt1"]
         m = xtract_data["slope"]
         smoothsize = xtract_data["bwidth"]
         x = np.arange(0, 16384)
         bkg1_mid = m*x + b1
-        bkg1_y1 = bkg1_mid + height/2
-        bkg1_y0 = bkg1_mid - height/2
+        bkg1_y1 = bkg1_mid + height1/2
+        bkg1_y0 = bkg1_mid - height1/2
         bkg2_mid = m*x + b2
-        bkg2_y1 = bkg2_mid + height/2
-        bkg2_y0 = bkg2_mid - height/2
+        bkg2_y1 = bkg2_mid + height2/2
+        bkg2_y0 = bkg2_mid - height2/2
         bkg1_y0 = np.round(bkg1_y0)
         bkg1_y0 = bkg1_y0.astype(int)
         bkg2_y0 = np.round(bkg2_y0)
@@ -102,6 +108,7 @@ class CosImage():
         self.bkg2_ystart = bkg2_y0
         self.bkg2_yend = bkg2_y1
 
+
 def sum_bkg_region(data, bkg_lo, bkg_hi):
     assert np.shape(data)[1] == len(bkg_lo) == len(bkg_hi), "Data X-dimension must match limits of background regions"
     datasum = []
@@ -111,6 +118,31 @@ def sum_bkg_region(data, bkg_lo, bkg_hi):
     datasum = np.array(datasum)
     
     return datasum
+
+
+def sum_region_ylims(data_2d, y0, y1, x0=None, x1=None):
+    """
+    Sum a region of a 2D image. *NOTE*: The upper limits (y1, x1) 
+    are EXCLUSIVE, as is typical in python. E.g. specifying y0=9, y1=11
+    will sum across rows 9 and 10 only.
+
+    Args:
+        data_2d (2D np.array): 2-dimensional array to sum over.
+        y0 (int): Lower row limit.
+        y1 (int): Upper row limit (EXCLUSIVE).
+        x0 (int): Lower column limit.
+        x1 (int): Upper column limit (EXCLUSIVE).
+    """
+
+    if x0 is None:
+        x0 = 0
+    if x1 is None:
+        sh = np.shape(data_2d)
+        x1 = sh[1] 
+    datasum = np.sum(data_2d[y0:y1, x0:x1], axis=0)
+    
+    return datasum 
+
 
 def smooth_array(data, smoothsize=100):
     bin_edges = np.arange(0, len(data), smoothsize)
@@ -138,16 +170,17 @@ def get_data(flt_custom, flt_default, superdark_custom, dark_dir=LOCAL_DARKDIR, 
     xtract_data = xtract[inds]
     b1 = xtract_data["b_bkg1"]
     b2 = xtract_data["b_bkg2"]
-    height = xtract_data["height"]
+    height1 = xtract_data["b_hgt1"]
+    height2 = xtract_data["b_hgt1"]
     m = xtract_data["slope"]
     smoothsize = xtract_data["bwidth"]
     x = np.arange(0, 16384)
     bkg1_mid = m*x + b1
-    bkg1_y1 = bkg1_mid + height/2
-    bkg1_y0 = bkg1_mid - height/2
+    bkg1_y1 = bkg1_mid + height1/2
+    bkg1_y0 = bkg1_mid - height1/2
     bkg2_mid = m*x + b2
-    bkg2_y1 = bkg2_mid + height/2
-    bkg2_y0 = bkg2_mid - height/2
+    bkg2_y1 = bkg2_mid + height2/2
+    bkg2_y0 = bkg2_mid - height2/2
     bkg1_y0 = np.round(bkg1_y0)
     bkg1_y0 = bkg1_y0.astype(int)
     bkg2_y0 = np.round(bkg2_y0)
@@ -233,12 +266,15 @@ def get_data(flt_custom, flt_default, superdark_custom, dark_dir=LOCAL_DARKDIR, 
 
 
 def plot_data(x, bkg1_default, bkg2_default, bkg1_custom, bkg2_custom, bkg1_lo, 
-              bkg2_lo, bkg1_hi, bkg2_hi, bkg1_dark, bkg2_dark, dark_x, targname):
-    fig, axes0 = plt.subplots(3, 1, figsize=(8.5, 11))
+              bkg2_lo, bkg1_hi, bkg2_hi, bkg1_dark, bkg2_dark, dark_x, targname,
+              flt_default):
+    fig, axes0 = plt.subplots(3, 1, figsize=(9, 12))
+    fig.subplots_adjust(hspace=0.3)
+    segment = fits.getval(flt_default, "segment")
+    rootname = fits.getval(flt_default, "rootname").lower()
+    hv = fits.getval(flt_default, f"HVLEVEL{segment[-1]}", 1)
+    date = fits.getval(flt_default, "date-obs", 1)
     axes = axes0.flatten()
-    axes[0].hlines(y=0, xmin=-1000, xmax=17384, colors="lightgrey", linestyles="--")
-    axes[1].hlines(y=0, xmin=-1000, xmax=17384, colors="lightgrey", linestyles="--")
-    axes[2].hlines(y=0, xmin=-1000, xmax=17384, colors="lightgrey", linestyles="--")
     
     bkg1 = {"default": bkg1_default, "custom": bkg1_custom, "lo": bkg1_lo, "hi": bkg1_hi, "superdark": bkg1_dark}
     bkg2 = {"default": bkg2_default, "custom": bkg2_custom, "lo": bkg2_lo, "hi": bkg2_hi, "superdark": bkg2_dark}
@@ -249,21 +285,25 @@ def plot_data(x, bkg1_default, bkg2_default, bkg1_custom, bkg2_custom, bkg1_lo,
           "superdark": (bkg1_dark + bkg2_dark) / 2.}
     dicts = [bkg1, bkg2, av]
 
-    titles = ["Background 1 (Lower)", "Background 2 (Upper)", "Average"]
+    titles = ["Background Region 1", "Background Region 2", "Average"]
+    alpha = 0.7
     for i in range(3):
         ax = axes[i]
+        ax.hlines(y=0, xmin=-1000, xmax=17384, colors="lightgrey", linestyles="--")
         d = dicts[i]
         ax.set_ylabel("Counts/s")
-        ax.plot(x, d["default"],   COLORS[0], alpha=0.8, label="Default FLT")
-        ax.plot(x, d["custom"],    COLORS[1], alpha=0.8, label="Custom FLT")
-        ax.plot(x, d["lo"],        COLORS[2], alpha=0.8, label="Lo Dark")
-        ax.plot(x, d["hi"],        COLORS[3], alpha=0.8, label="Hi Dark")
-        ax.plot(dark_x, d["superdark"], COLORS[4], alpha=0.8, label="Custom Dark")
-        ax.set_ylim(-.0001, 0.00035)
+        ax.plot(x, d["default"],        COLORS[0], alpha=alpha, lw=1.7, label="Default FLT")
+        ax.plot(x, d["custom"],         COLORS[1], alpha=alpha, lw=1.7, label="Custom FLT", zorder=100)
+        ax.plot(x, d["lo"],             COLORS[2], alpha=alpha, lw=1.7, label="Lo Dark")
+        ax.plot(x, d["hi"],             COLORS[3], alpha=alpha, lw=1.7, label="Hi Dark")
+        ax.plot(dark_x, d["superdark"], COLORS[4], alpha=alpha, lw=1.7, label="Custom Dark")
+        ax.set_ylim(-.0001, 0.0004)
         ax.set_xlim(-500, 16884)
         ax.set_title(titles[i])
-        ax.legend()
-    figname = f"{targname}_flt_comp.png"
+    axes[0].legend()
+    figname = f"{rootname}_{segment}_flt_comp.png"
+    title = f"{segment}; HV={hv}; {date} ({rootname})"
+    fig.suptitle(title, size=20, y=.94)
     fig.savefig(figname)
     print(f"Wrote {figname}")
 
@@ -272,7 +312,7 @@ def compare_backgrounds(flt_default, flt_custom, targname, superdark_custom):
     binned_x, bkg1_default, bkg2_default, bkg1_custom, bkg2_custom, bkg1_lo, \
         bkg2_lo, bkg1_hi, bkg2_hi, bkg1_dark, bkg2_dark, dark_x = get_data(flt_custom, flt_default, superdark_custom)
     plot_data(binned_x, bkg1_default, bkg2_default, bkg1_custom, bkg2_custom, \
-        bkg1_lo, bkg2_lo, bkg1_hi, bkg2_hi, bkg1_dark, bkg2_dark, dark_x, targname)
+        bkg1_lo, bkg2_lo, bkg1_hi, bkg2_hi, bkg1_dark, bkg2_dark, dark_x, targname, flt_default)
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()

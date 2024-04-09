@@ -1,8 +1,11 @@
+import os
 import itertools
 import numpy as np
 import argparse
 from matplotlib import pyplot as plt
-import os
+dirname = os.path.dirname(__file__)
+stylesheet = os.path.join(dirname, "niceplot.mplstyle")
+plt.style.use(stylesheet)
 import glob
 from astropy.io import fits
 from scipy import stats

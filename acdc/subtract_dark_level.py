@@ -2,16 +2,19 @@
 Perform a custom dark subtraction on COS corrtag files.
 """
 
+import os
 import argparse
 import copy
 import asdf
 from astropy.io import fits
 import numpy as np
 import matplotlib.pyplot as plt
+dirname = os.path.dirname(__file__)
+stylesheet = os.path.join(dirname, "analysis", "niceplot.mplstyle")
+plt.style.use(stylesheet)
 import glob
-import os
 
-from .predict_dark_level1 import bin_science, get_binning_pars
+from .predict_dark_level import bin_science, get_binning_pars
 
 RESEL = [6, 10]
 PHA_INCLUSIVE = [2, 23]
@@ -55,7 +58,7 @@ def subtract_dark(corrtags, datadir, fact=1, outdir=".", overwrite=False):
         pha_str = f"pha{PHA_INCL_EXCL[0]}-{PHA_INCL_EXCL[1]}"
         pred_noise = pred_noise_af[pha_str]
         b = get_binning_pars(pred_noise_af)
-        binned, nevents = bin_science(item, b, segment, cenwave, lp, fact, exclude_lya=False)
+        binned, nevents = bin_science(item, b, segment, cenwave, lp, fact, exclude_airglow=False)
         
         hdulist = fits.open(item)
         data = hdulist[1].data

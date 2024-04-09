@@ -1,6 +1,10 @@
+import os
 import datetime
 import argparse
 from matplotlib import pyplot as plt
+dirname = os.path.dirname(__file__)
+stylesheet = os.path.join(dirname, "niceplot.mplstyle")
+plt.style.use(stylesheet)
 import numpy as np
 from astropy.io import fits
 import glob

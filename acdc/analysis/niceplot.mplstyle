@@ -1,0 +1,34 @@
+# font
+font.family: sans-serif
+font.size: 15
+
+# Axis lines
+axes.linewidth: 1.5
+
+# Axis labels
+axes.labelsize: 12
+axes.titlesize: 18
+
+# Legend
+legend.fontsize: 12
+
+# Ticks
+xtick.major.width: 1.5
+ytick.major.width: 1.5
+xtick.labelsize: 12
+ytick.labelsize: 12
+xtick.major.size: 7
+xtick.minor.size: 6
+ytick.major.size: 7
+ytick.minor.size: 6
+
+# Lines
+lines.markersize: 10
+lines.linewidth: 2.2
+
+# Title
+figure.titlesize: x-large
+
+# Savefig
+savefig.dpi: 200
+savefig.bbox: tight
