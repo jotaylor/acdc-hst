@@ -8,10 +8,13 @@ calibrated using CalCOS to create custom x1d files. x1d files should be coadded
 offline in order to increase SNR.
 """
 
+import os
+DIRNAME = os.path.dirname(__file__)
 import sys
+import gzip
+import shutil
 from collections import defaultdict
 import argparse
-import os
 import glob
 import datetime
 from astropy.io import fits
@@ -39,7 +42,7 @@ class Acdc():
             (either 'active' or 'quiescent') and each value is the superdark name.
     """
     
-    def __init__(self, indir, darkcorr_outdir, x1d_outdir=None, binned=False, 
+    def __init__(self, indir, darkcorr_outdir, x1d_outdir=None, binned=True, 
                  segment=None, hv=None, overwrite=False,
                  exclude_airglow=False, superdark_dir=None, 
                  superdarks=None, calibrate=True):
@@ -57,16 +60,21 @@ class Acdc():
         self.indir = indir
         self.exclude_airglow = exclude_airglow
         if superdark_dir is None and superdarks is None:
-            try:
-                superdark_dir = os.environ["ACDC_SUPERDARKS"]
-            except KeyError as e:
-                print("ERROR: You must supply the superdark directory or define the $ACDC_SUPERDARKS environment variable- this is where all superdarks are located")
-                print("Exiting")
-                sys.exit()
+            trydir = os.path.join(DIRNAME, "data/superdarks/epoch_superdarks")
+            if len(glob.glob(os.path.join(trydir, "*superdark*asdf*"))) != 0:
+                superdark_dir = trydir 
+            else:
+                try:
+                    superdark_dir = os.environ["ACDC_SUPERDARKS"]
+                except KeyError as e:
+                    print("ERROR: You must supply the superdark directory or define the $ACDC_SUPERDARKS environment variable- this is where all superdarks are located")
+                    print("Exiting")
+                    sys.exit()
         self.superdark_dir = superdark_dir
         if superdarks is None:
-            superdarks = glob.glob(os.path.join(self.superdark_dir, "*superdark*.asdf"))
-
+            superdarks = glob.glob(os.path.join(self.superdark_dir, "*superdark*.asdf*"))
+#        superdarks = self.unzip_superdarks(superdarks)
+        
         self.darkcorr_outdir = darkcorr_outdir
         self.binned = binned
         if segment is not None:
@@ -147,6 +155,21 @@ class Acdc():
         return dark_dict
 
     
+    def unzip_superdarks(self, superdarks):
+        unzipped_superdarks = []
+        for item in superdarks:
+            if item.endswith(".gz"):
+                unzipped = item.replace(".gz", "")
+                with gzip.open(item, 'rb') as f_in:
+                    with open(unzipped, 'wb') as f_out:
+                        shutil.copyfileobj(f_in, f_out)
+                print(f"Unzipped {item}")
+                unzipped_superdarks.append(unzipped)
+            else:
+                unzipped_superdarks.append(item)
+        return unzipped_superdarks
+   
+
     def custom_dark_correction(self):
         """Perform the custom dark correction.
 
