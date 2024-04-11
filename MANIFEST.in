@@ -1,0 +1,9 @@
+# Package info
+include CODE_OF_CONDUCT.md
+include README.md
+include LICENSE
+include pyproject.toml
+
+# Data
+include src/acdc/analysis/niceplot.mplstyle
+include src/acdc/data/superdarks/epoch_superdarks/*.asdf*

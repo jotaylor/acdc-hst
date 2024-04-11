@@ -1,4 +1,71 @@
 [build-system]
-requires = ["setuptools>=42", "wheel"]
+requires = ["setuptools"]
 build-backend = "setuptools.build_meta"
 
+[project]
+# This is the distribution name (i.e. you run `pip install acdc-hst`)
+# But the import name is still `acdc (i.e. `import acdc`)
+name = "acdc-hst"
+version = "1.1"
+description = "Software to perform an optimized FUV (Far Ultraviolet) dark correction to HST COS data (Hubble Space Telescope Cosmic Origins Spectrograph)."
+readme = "README.md"
+requires-python = ">=3.9"
+authors = [{ name = "Jo Taylor", email = "jotaylor@stsci.edu" }]
+license = { file = "LICENSE" } 
+keywords = [
+    "astronomy",
+    "hst",
+    "hubble",
+    "cos",
+    "ultraviolet",
+    "uv",
+    "dark",
+    "instrumentation",
+    "calibration",
+]
+classifiers = [
+    "Intended Audience :: Science/Research",
+    "Topic :: Scientific/Engineering :: Astronomy",
+    "License :: OSI Approved :: BSD License",
+    "Natural Language :: English",
+    "Operating System :: POSIX :: Linux",
+    "Operating System :: MacOS :: MacOS X",
+    "Programming Language :: Python :: 3",
+]
+dependencies = [
+    "asdf",
+    "astropy",
+    "calcos",
+    "crds",
+    "dask",
+    "shapely",
+    "matplotlib",
+    "numpy",
+    "pandas",
+    "pymysql",
+    "pyyaml",
+    "sqlalchemy",
+    "ullyses>=4.1.0",
+    "wget",
+]
+
+[project.optional-dependencies]
+docs = ["sphinx", "sphinx_rtd_theme"]
+viz = [
+    "bokeh>=2.1.1", 
+    "datashader>=0.13.0", 
+    "holoviews>=1.14.4", 
+    "panel>=0.11.3"
+]
+
+[project.urls]
+Homepage = "https://github.com/jotaylor/cos_dark"
+Documentation = "https://github.com/jotaylor/cos_dark"
+Source = "https://github.com/jotaylor/cos_dark"
+Tracker = "https://github.com/jotaylor/cos_dark/issues"
+
+[project.scripts]
+acdc = "acdc.run_acdc:acdc_parser"
+make_all_superdarks = "acdc.superdark.create_superdark:all_hvs"
+download_superdarks = "acdc.superdark.download_superdarks:download_parser"
+coadd = "acdc.analysis.coadd_x1ds:coadd_parser"
