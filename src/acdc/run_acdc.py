@@ -3,7 +3,7 @@ from acdc.dark_correction import Acdc
 
 
 def run_acdc(indir, darkcorr_outdir, x1d_outdir=None,
-             superdark_dir=None, binned=False, hv=None, 
+             superdark_dir=None, binned=True, hv=None, 
              segment=None, overwrite=False, exclude_airglow=False,
              calibrate=True):
     """Wrapper script to perform custom dakr correction on an input directory.
@@ -34,9 +34,9 @@ def acdc_parser():
                         help="Name of directory to write 1D spectra to")
     parser.add_argument("-d", "--darkdir", default=None,
                         help="Directory that houses superdarks to use")
-    parser.add_argument("--binned", default=False,
-                        action="store_true",
-                        help="Toggle to indicate that supplied superdarks are already binned")
+    parser.add_argument("--unbinned", dest="binned", default=True,
+                        action="store_false",
+                        help="Toggle to indicate that supplied superdarks are binned")
     parser.add_argument("-c", "--clobber", default=False,
                         action="store_true",
                         help="Toggle to overwrite any existing products")
