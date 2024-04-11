@@ -122,6 +122,11 @@ class Superdark():
             key = f"pha{self.pha_bins[i]}-{self.pha_bins[i+1]}"
             self.pha_images[key] = copy.deepcopy(af[key])
             self.superdarks.append(copy.deepcopy(af[key]))
+
+        try:
+            self.creation_date = af["creation_date"]
+        except KeyError:
+            self.creation_date = "unknown"
         af.close()
         return self
 
@@ -312,6 +317,9 @@ class Superdark():
         data_dict["fixed_gsag"] = self.fixed_gsag
         data_dict["is_binned"] = self.is_binned
         data_dict["dq_image"] = self.dq_image
+        now = datetime.datetime.now()
+        self.creation_date = now.strftime("%Y-%m-%d %H:%M")
+        data_dict["creation_date"] = self.creation_date
         af = asdf.AsdfFile(data_dict)
         today = datetime.datetime.now().strftime("%d%b%y-%H:%M:%S")
         if self.outfile is None and user_outfile is None:
@@ -462,7 +470,7 @@ class Superdark():
         return final_image
 
 
-    def bin_superdark(self, bin_x, bin_y, pha_bins=None, outfile=None, verbose=True, writefile=True):
+    def bin_superdark(self, bin_x, bin_y, pha_bins=None, outfile=None, verbose=True, writefile=True, makeplots=True):
         
         # Bin across PHA
         self.pha_images = {}
@@ -552,6 +560,7 @@ class Superdark():
 
         if writefile is True:
             self.write_superdark()
+        if makeplots is True: 
             self.plot_superdarks()
 
     def plot_superdarks(self, pdffile=None, vmin=None, vmax=None, savepng=False, pngroot=None):
