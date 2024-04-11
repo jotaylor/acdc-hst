@@ -7,15 +7,12 @@
 # Jupyter
 .ipynb_checkpoints/
 
-# Data directories
-superdarks/
-output/
-low_sn_data/
-old/
+# Directories
+misc/
+src/acdc/data/superdarks/active_quiescent/
 
 # Specific filetypes
 *.p
-*.asdf
 *.pdf
 *.npy
 *.fits
