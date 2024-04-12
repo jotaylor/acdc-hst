@@ -45,10 +45,10 @@ The easiest way to install `acdc` is to use `pip`:
 pip install acdc-hst
 ```
 
-> ⚠️ **Note**
+> [!IMPORTANT]
 > 
 > The [package name on PyPi](https://pypi.org/project/acdc-hst/) and the name of this repo,
-> `acdc-hst`, is different than the _imported_ package name, `acdc`. That is,
+> `acdc-hst`, are different than the _imported_ package name, `acdc`. That is,
 > you import the package as `import acdc`.
 
 ### Install the development version
@@ -59,21 +59,16 @@ First clone this repo. Then `cd` into the cloned repository and execute:
 pip install .
 ```
 
-To install requirements for building the sphinx documentation:
-
-```
-pip install ".[docs]"
-```
-
 ## Usage
 
 For full usage instructions, refer to the documentation. 
 
 ## Building the docs
-First clone this repository, then navigate into the repo and
-the `docs/` directory. Once there, run the following command:
+First clone this repository, then navigate into the repo and follow these commands:
 
 ```
+pip install ".[docs]"
+cd docs/
 make html
 ```
 
