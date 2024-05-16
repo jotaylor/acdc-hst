@@ -56,7 +56,7 @@ class CosImage():
         if S.pha_bins != PHA_INCL_EXCL:
             S.bin_superdark(1, 1, pha_bins=PHA_INCL_EXCL)
         if S.bin_x != 1 or S.bin_y != 1:
-            data_binned = s.superdarks[0]
+            data_binned = S.superdarks[0]
             data = unbin_image(data_binned, S.bin_x, S.bin_y, S.xstart, S.ystart,
                                S.xend, S.yend)
         else:
