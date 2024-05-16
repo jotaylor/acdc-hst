@@ -7,7 +7,7 @@ FUV dark rate.
 .. _sqlite_db:
 
 The SQLite Database, ``cos_dark``
--------------------------------
+---------------------------------
 
 This database
 tracks the dark counts over binned regions of the FUV detectors. 
@@ -45,7 +45,7 @@ The format of the ``cos_darks`` SQLite database is as follows:
 Solar flux values are obtained from `NOAA <https://www.swpc.noaa.gov/phenomena/f107-cm-radio-emissions>`_.
 
 The MySQL database, ``hstcal``
-----------------------------
+------------------------------
 
 The MySQL database, ``hstcal``, is hosted on an
 STScI internal server. To access the ``hstcal`` database, you need MySQL version >= 8. 

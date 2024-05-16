@@ -2,19 +2,23 @@
 
 ## Another dark correction?
 COS spectroscopic science in the extreme UV regime is limited by detector 
-background noise. The COS pipeline, [`calcos`](https://github.com/spacetelescope/calcos) 
-does not perform an optimized 
-background subtraction. In order to achieve the maximum scientific value of
-the COS instrument, we have a designed a custom characterization and correction
-of the COS FUV dark rate.
+background noise. The COS pipeline, 
+[`CalCOS`](https://github.com/spacetelescope/calcos) 
+performs a basic background subtraction, but for low signal-to-noise ratio (SNR)
+observations, a more nuanced approach is necessary to fully capitalize on COS's
+FUV capabilities. In order to achieve the maximum scientific value of
+the COS instrument, we have a designed a custom
+characterization and correction of the COS FUV dark rate, `acdc`.
 
-With this package we can: 
-* create and maintain databases needed to measure the dark rate as a function of time, position, PHA, and more
+With `acdc`, we can: 
+* create and maintain databases needed to measure the dark rate as a function of time, HST position, PHA, solar activity, and more
 * create COS/FUV superdarks
 * use superdarks to perform custom dark corrections
 * analyze the efficacy of custom dark-corrected COS data
 
 ## Installation
+
+### Create a conda Environment
 If you do not already have Conda installed, you need to download and install
 either Miniconda or Anaconda. Miniconda provides a bare minimum Conda
 environment. Anaconda provides a full Conda root environment along with
@@ -22,14 +26,7 @@ many other tools, libraries, and utilities.
 * get [Miniconda](https://docs.conda.io/en/latest/miniconda.html)
 * get [Anaconda](https://www.anaconda.com/products/individual)
 
-Now clone this repository on your local machine. 
-
-For SSH connection: `git clone git@github.com:spacetelescope/cos_dark.git`
-
-For HTTPS connection: `git clone https://github.com/spacetelescope/cos_dark.git`
-
-#### Installing into a fresh environment
-`cd` into the cloned repository and execute:
+Create a conda enviornment to use `acdc`:
 
 ```
 conda create -n <env_name> python=<version>
@@ -39,30 +36,39 @@ pip install .
 
 where `<env_name>` is the name of the environment that will be created.
 You need at least python version 3.9, so fill in `<version>` with whatever
-version above >=3.9 that you want.
-This only installs dependencies required by the `acdc` packae. You will
-need to install anything else manually, e.g.:
+version >=3.9 that you desire.
+
+### Install the latest stable version
+The easiest way to install `acdc` is to use `pip`:
 
 ```
-pip install ipython multiprocessing
+pip install acdc-hst
 ```
 
-#### Installing into an existing environment
-Activate your desired environment, then `cd` into the cloned repository and install using `pip`:
+> [!IMPORTANT]
+> 
+> The [package name on PyPi](https://pypi.org/project/acdc-hst/) and the name of this repo,
+> `acdc-hst`, are different than the _imported_ package name, `acdc`. That is,
+> you import the package as `import acdc`.
+
+### Install the development version
+
+First clone this repo. Then `cd` into the cloned repository and execute:
 
 ```
-pip install ".[docs]"
+pip install .
 ```
-
-The extra `[docs]` ensures that you pick up the requirements needed to build the docs locally.
 
 ## Usage
 
-For full usage instructions, refer to the documentation. While the repository is private,
-the docs must be built locally. To do so, navigate into the cloned repository and into
-the `docs/` directory. Once there, run the following command:
+For full usage instructions, refer to the documentation. 
+
+## Building the docs
+First clone this repository, then navigate into the repo and follow these commands:
 
 ```
+pip install ".[docs]"
+cd docs/
 make html
 ```
 
