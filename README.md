@@ -18,6 +18,9 @@ With `acdc`, we can:
 * use superdarks to perform custom dark corrections
 * analyze the efficacy of custom dark-corrected COS data
 
+For full usage instructions, refer to the 
+[documentation on ReadTheDocs](https://acdc-hst.readthedocs.io/) 
+
 ## Installation
 
 ### Create a conda environment
