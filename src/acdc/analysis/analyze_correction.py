@@ -99,12 +99,12 @@ class CosImage():
         bkg2_y1 = np.round(bkg2_y1)
         bkg2_y1 = bkg2_y1.astype(int)
 
-        self.bkg1_xstart = bkg1_x0
-        self.bkg1_xend = bkg1_x1
+#        self.bkg1_xstart = bkg1_x0
+#        self.bkg1_xend = bkg1_x1
         self.bkg1_ystart = bkg1_y0
         self.bkg1_yend = bkg1_y1
-        self.bkg2_xstart = bkg2_x0
-        self.bkg2_xend = bkg2_x1
+#        self.bkg2_xstart = bkg2_x0
+#        self.bkg2_xend = bkg2_x1
         self.bkg2_ystart = bkg2_y0
         self.bkg2_yend = bkg2_y1
 
