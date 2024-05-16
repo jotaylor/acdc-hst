@@ -1,5 +1,7 @@
 # Another COS Dark Correction (ACDC) ⚡
 
+[![Documentation Status](https://readthedocs.org/projects/acdc-hst/badge/?version=latest)](https://acdc-hst.readthedocs.io/en/latest/?badge=latest)
+
 ## Another dark correction?
 COS spectroscopic science in the extreme UV regime is limited by detector 
 background noise. The COS pipeline, 
@@ -18,7 +20,7 @@ With `acdc`, we can:
 
 ## Installation
 
-### Create a conda Environment
+### Create a conda environment
 If you do not already have Conda installed, you need to download and install
 either Miniconda or Anaconda. Miniconda provides a bare minimum Conda
 environment. Anaconda provides a full Conda root environment along with
@@ -61,10 +63,12 @@ pip install .
 
 ## Usage
 
-For full usage instructions, refer to the documentation. 
+For full usage instructions, refer to the 
+[documentation on ReadTheDocs](https://acdc-hst.readthedocs.io/) 
 
-## Building the docs
-First clone this repository, then navigate into the repo and follow these commands:
+## Building the docs locally
+To build the documentation locally, for testing, 
+first clone this repository then navigate into the repo and follow these commands:
 
 ```
 pip install ".[docs]"
