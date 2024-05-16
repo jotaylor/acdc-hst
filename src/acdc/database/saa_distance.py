@@ -164,7 +164,7 @@ def Distance3dPointTo3dPolygon(lat,lon,geom):
     """
     if geom.type.values[0] == 'Polygon':
         dist = math.inf
-        xy = features[0]['geometry'][0].exterior.xy
+#        xy = features[0]['geometry'][0].exterior.xy
         xy = mapping(geom)["features"][0]["geometry"]["coordinates"][0]
         #Polygons are closed rings, so the first-last pair is automagically delt with
         for p1, p2 in Pairwise(zip(*xy)):

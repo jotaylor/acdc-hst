@@ -77,11 +77,11 @@ def bin_data(data, segment, interactive=False):
             print(f"HV={hv} does not have counts at all PHAs")
             continue
         if interactive is True:
-            pl.hist(phas, bins=np.arange(0,32))
-            pl.show()
+            plt.hist(phas, bins=np.arange(0,32))
+            plt.show()
             x0 = int(input("Enter starting X for normal fit: "))
             x1 = int(input("Enter ending X for normal fit: "))
-            pl.clf()
+            plt.clf()
         else:
             x0 = 5
             x1 = 15

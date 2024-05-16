@@ -173,7 +173,7 @@ class Superdark():
             if self.region == "inner":
                 xstart, xend, ystart, yend = 1000, 14990, 405, 740
         else:
-            raise Exception(f"Invalid segment specified: {segment}")
+            raise Exception(f"Invalid segment specified: {self.segment}")
         while (xstart // self.bin_x) * self.bin_x < xstart:
             xstart += 1
         while (ystart // self.bin_y) * self.bin_y < ystart:
@@ -394,7 +394,7 @@ class Superdark():
         self.fixed_gsag = True 
 
 
-    def get_hotspots(self):
+    def get_hotspots(self, extnum):
         spot = Table.read(self.spottab, format="fits", hdu=extnum)
         spot_df = spot.to_pandas()
         spot_df = spot_df.rename(columns={"LX": "X0", "LY": "Y0"})
@@ -404,7 +404,7 @@ class Superdark():
         str_df = spot_df.select_dtypes([np.object])
         str_df = str_df.stack().str.decode('utf-8').unstack()
         for col in str_df:
-            df[col] = str_df[col]
+            spot_df[col] = str_df[col]
 
         self.hotspots = spot_df
     
@@ -419,7 +419,7 @@ class Superdark():
         str_df = bpix_df.select_dtypes([np.object])
         str_df = str_df.stack().str.decode('utf-8').unstack()
         for col in str_df:
-            df[col] = str_df[col]
+            bpix_df[col] = str_df[col]
         bpix_df["SDQ"] =  np.where(bpix_df["DQ"]&self.sdqflags == bpix_df["DQ"], True, False)
 
         self.bpix_regions = bpix_df
@@ -453,7 +453,7 @@ class Superdark():
             inds = np.where((events["pha"] >= phastart) & (events["pha"] < phaend))
             events = events[inds]
             if not len(inds[0]):
-                print(f"No counts for PHA={pha}")
+                print(f"No counts for PHA>={phastart} and PHA<{phaend}")
                 return image
 
             # Call for this is x_values, y_values, image to bin to, offset in x
