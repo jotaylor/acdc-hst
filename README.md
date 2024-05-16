@@ -19,7 +19,7 @@ With `acdc`, we can:
 * analyze the efficacy of custom dark-corrected COS data
 
 For full usage instructions, refer to the 
-[documentation on ReadTheDocs](https://acdc-hst.readthedocs.io/) 
+[documentation on ReadTheDocs](https://acdc-hst.readthedocs.io/). 
 
 ## Installation
 
@@ -67,7 +67,7 @@ pip install .
 ## Usage
 
 For full usage instructions, refer to the 
-[documentation on ReadTheDocs](https://acdc-hst.readthedocs.io/) 
+[documentation on ReadTheDocs](https://acdc-hst.readthedocs.io/). 
 
 ## Building the docs locally
 To build the documentation locally, for testing, 
