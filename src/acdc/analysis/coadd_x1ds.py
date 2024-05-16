@@ -1,6 +1,7 @@
 import os
 import glob
 import argparse
+import datetime
 
 from ullyses.generic_coadd_wrapper import coadd_files
 
