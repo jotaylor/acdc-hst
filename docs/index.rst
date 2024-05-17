@@ -9,7 +9,7 @@
    Installation and Setup <install>
    Databases <databases>
    Usage <usage>
-   Packages & API <_autosummary/acdc>
+   Package Index <_autosummary/acdc>
 
 Another COS Background Correction (ACDC)
 ========================================

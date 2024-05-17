@@ -1,5 +1,5 @@
 What is ACDC?
-=======================
+=============
 
 Do we really need **A**\ nother **C**\ OS **D**\ ark **C**\ orrection?
 
@@ -8,7 +8,7 @@ COS spectroscopic science in the extreme UV regime is limited by detector backgr
 With this package we can:
 
 * create and maintain databases needed to measure the dark rate as a function of time, position, PHA, and more
-* create COS/FUV superdarks
+* create custom COS/FUV superdarks
 * use superdarks to perform custom dark corrections
 * analyze the efficacy of custom dark-corrected COS data
 
@@ -59,3 +59,9 @@ The final result is a 1D spectrum that has been extracted using the boxcar
 method. 
 
 
+The Finer Details
+-----------------
+
+For an in-depth explanation of the COS dark behavior, creation of superdarks,
+application of the custom dark correction, and more, please see
+:download:`our full technical report <COS_Background_Full_Report.pdf>`.
