@@ -8,7 +8,7 @@ COS spectroscopic science in the extreme UV regime is limited by detector backgr
 With this package we can:
 
 * create and maintain databases needed to measure the dark rate as a function of time, position, PHA, and more
-* create COS/FUV superdarks
+* create custom COS/FUV superdarks
 * use superdarks to perform custom dark corrections
 * analyze the efficacy of custom dark-corrected COS data
 
