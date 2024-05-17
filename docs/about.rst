@@ -59,3 +59,9 @@ The final result is a 1D spectrum that has been extracted using the boxcar
 method. 
 
 
+The Finer Details
+-----------------
+
+For an in-depth explanation of the COS dark behavior, creation of superdarks,
+application of the custom dark correction, and more, please see
+:download:`our full technical report <COS_Background_Full_Report.pdf>`.
